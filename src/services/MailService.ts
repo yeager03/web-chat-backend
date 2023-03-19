@@ -2,7 +2,8 @@ import nodemailer, { Transporter } from "nodemailer";
 import { config } from "dotenv";
 
 // mail templates
-import verify from "../templates/verify.js";
+import verifyMail from "../mail/templates/verifyMail.js";
+import resetPassword from "../mail/templates/resetPassword.js";
 
 config();
 
@@ -27,7 +28,17 @@ class MailService {
 			to,
 			subject: "Активация аккаунта на WebChat2023",
 			text: "",
-			html: verify(name, link),
+			html: verifyMail(name, link),
+		});
+	}
+
+	public async resetPasswordMail(to: string, name: string, link: string) {
+		await this.transporter.sendMail({
+			from: process.env.SMTP_USER,
+			to,
+			subject: "Сброс пароля на WebChat2023",
+			text: "",
+			html: resetPassword(name, link),
 		});
 	}
 }

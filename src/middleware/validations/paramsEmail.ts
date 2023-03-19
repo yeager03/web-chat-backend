@@ -7,7 +7,7 @@ import { IRequest } from "../../types/IRequest.js";
 import validator from "validator";
 
 export default (req: IRequest, res: Response, next: NextFunction): Response | void => {
-	const email: string = req.query.email ? (req.query.email as string) : "";
+	const email: string = req.params.email;
 
 	if (!email) {
 		return res.status(422).json({ status: "error", message: `Введите email` });

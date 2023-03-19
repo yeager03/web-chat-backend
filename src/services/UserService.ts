@@ -29,7 +29,10 @@ class UserService {
 		}
 
 		const hashPassword = await bcrypt.hash(password, 10);
+
 		const activationId = uuidv4();
+		const activationIdExpiries = Date.now() + 10 * 60 * 1000;
+
 		const avatarColors = getRandomColors();
 
 		const user = new UserModel({
@@ -37,6 +40,7 @@ class UserService {
 			fullName,
 			password: hashPassword,
 			activationId,
+			activationIdExpiries,
 			avatarColors,
 		});
 
@@ -88,28 +92,6 @@ class UserService {
 		return tokenService.removeToken(refreshToken);
 	}
 
-	public async findUserByEmail(email: string) {
-		const candidate = await UserModel.findOne({ email });
-
-		if (!candidate) {
-			throw new Error("Пользователь с таким email не найден");
-		}
-
-		return { ...new UserDto(candidate) };
-	}
-
-	public async activateAccount(activationId: string) {
-		const user = await UserModel.findOne({ activationId });
-
-		if (!user) {
-			throw new Error("Некорректная ссылка для активации");
-		}
-
-		user.isActivated = true;
-
-		await user.save();
-	}
-
 	public async refreshAccount(refreshToken: string) {
 		if (!refreshToken) {
 			throw new Error("Пользователь не авторизован");
@@ -141,8 +123,78 @@ class UserService {
 		};
 	}
 
+	public async findUserByEmail(email: string) {
+		const candidate = await UserModel.findOne({ email });
+
+		if (!candidate) {
+			throw new Error("Пользователь с таким email не найден");
+		}
+
+		return { ...new UserDto(candidate) };
+	}
+
 	public async getUserById(userId: string) {
 		return UserModel.findById(userId).lean();
+	}
+
+	public async activateAccount(activationId: string) {
+		const user = await UserModel.findOne({ activationId });
+
+		if (!user) {
+			throw {
+				status: "error",
+				message: "Некорректная ссылка для активации",
+			};
+		}
+
+		if (+new Date() > user.activationIdExpiries) {
+			throw {
+				status: "expired",
+				message: "Это ссылка больше не действительна",
+				email: user.email,
+			};
+		}
+
+		user.isActivated = true;
+
+		await user.save();
+	}
+
+	public async againSendActivateMail(email: string) {
+		const user = await UserModel.findOne({ email });
+
+		if (!user) {
+			throw new Error("Пользователь с таким email не найден");
+		}
+
+		const activationId = uuidv4();
+		const activationIdExpiries = Date.now() + 10 * 60 * 1000;
+
+		user.activationId = activationId;
+		user.activationIdExpiries = activationIdExpiries;
+
+		await user.save();
+		await mailService.sendActivationMail(
+			email,
+			user.fullName.split(" ")[0],
+			`${process.env.CLIENT_URL}/auth/activate/${activationId}`
+		);
+	}
+
+	public async resetPassword(email: string) {
+		const user = await UserModel.findOne({ email });
+
+		if (!user) {
+			throw new Error("Пользователь с таким email не найден");
+		}
+
+		const newPasswordId = uuidv4();
+
+		await mailService.resetPasswordMail(
+			email,
+			user.fullName.split(" ")[0],
+			`${process.env.CLIENT_URL}/auth/password/new/${newPasswordId}`
+		);
 	}
 }
 

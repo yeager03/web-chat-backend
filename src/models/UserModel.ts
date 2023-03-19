@@ -9,8 +9,11 @@ export interface IUser extends Document {
 		lighten: string;
 	};
 	password: string;
+	passwordResetId: string | null;
+	passwordResetIdExpiries: number | null;
 	isActivated: boolean;
 	activationId: string;
+	activationIdExpiries: number;
 	lastVisit: Date;
 	isOnline: boolean;
 }
@@ -22,8 +25,11 @@ const UserSchema = new Schema<IUser>(
 		avatar: { type: String, default: null },
 		avatarColors: { type: Object },
 		password: { type: String, required: true, trim: true },
+		passwordResetId: { type: String || null, default: null },
+		passwordResetIdExpiries: { type: Number || null, default: null },
 		isActivated: { type: Boolean, default: false },
 		activationId: { type: String },
+		activationIdExpiries: { type: Number },
 		lastVisit: { type: Date, default: new Date() },
 		isOnline: { type: Boolean, default: false },
 	},

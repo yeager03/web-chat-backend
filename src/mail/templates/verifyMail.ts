@@ -579,11 +579,20 @@ export default (name: string, link: string): string => {
                                                                      font-family: 'Open Sans', sans-serif;
                                                                      line-height: 23.8px;
                                                                   "
+                                                                  >Это ссылка действительна в течении 10 мин.</span
+                                                               >
+                                                            </p>
+                                                            <p style="font-size: 14px; line-height: 170%"> </p>
+                                                            <p style="font-size: 14px; line-height: 170%">
+                                                               <span
+                                                                  style="
+                                                                     font-family: 'Open Sans', sans-serif;
+                                                                     line-height: 23.8px;
+                                                                  "
                                                                   >Если вы получили это письмо по ошибке, просто игнорируйте
                                                                   его.</span
                                                                >
                                                             </p>
-                                                            <p style="font-size: 14px; line-height: 170%"> </p>
                                                             <p style="font-size: 14px; line-height: 170%">
                                                                <span
                                                                   style="

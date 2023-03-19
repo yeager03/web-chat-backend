@@ -9,7 +9,7 @@ import validator from "validator";
 export default (req: IRequest, res: Response, next: NextFunction): Response | void => {
 	const activationId: string = req.params.id;
 
-	if (!validator.default.isUUID(activationId)) {
+	if (!validator.default.isUUID(activationId, 4)) {
 		return res.status(422).json({ status: "error", message: `Переданный id:${activationId} не валидный` });
 	}
 

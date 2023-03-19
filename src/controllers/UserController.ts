@@ -59,9 +59,25 @@ export default class UserController {
 		}
 	}
 
+	public async refreshAccount(req: IRequest, res: Response) {
+		try {
+			const { refreshToken } = req.cookies;
+			const userData = await userService.refreshAccount(refreshToken);
+
+			res.cookie("refreshToken", userData.refreshToken, {
+				maxAge: 1 * 24 * 60 * 60 * 1000,
+				httpOnly: true,
+			});
+			return res.status(200).json({ status: "success", message: "Вы успешно авторизованы", ...userData });
+		} catch (error: any) {
+			res.clearCookie("refreshToken");
+			return res.status(401).json({ status: "error", message: error.message });
+		}
+	}
+
 	public async findUserByEmail(req: IRequest, res: Response) {
 		try {
-			const email: string = req.query.email ? (req.query.email as string) : "";
+			const email: string = req.params.email;
 			const userData = await userService.findUserByEmail(email);
 
 			return res.status(200).json({ status: "success", message: "Пользователь успешно найден", user: userData });
@@ -78,23 +94,34 @@ export default class UserController {
 
 			return res.status(200).json({ status: "success", message: "Ваш аккаунт успешно активирован" });
 		} catch (error: any) {
-			return res.status(400).json({ status: "error", message: error.message });
+			return res.status(400).json(error);
 		}
 	}
 
-	public async refreshAccount(req: IRequest, res: Response) {
+	public async againSendActivateMail(req: IRequest, res: Response) {
 		try {
-			const { refreshToken } = req.cookies;
-			const userData = await userService.refreshAccount(refreshToken);
+			const email: string = req.params.email;
 
-			res.cookie("refreshToken", userData.refreshToken, {
-				maxAge: 1 * 24 * 60 * 60 * 1000,
-				httpOnly: true,
+			await userService.againSendActivateMail(email);
+
+			return res.status(200).json({
+				status: "success",
+				message: "На вашу почту было отправлено новое письмо с подтверждением аккаунта",
 			});
-			return res.status(200).json({ status: "success", message: "Вы успешно авторизованы", ...userData });
 		} catch (error: any) {
-			res.clearCookie("refreshToken");
-			return res.status(401).json({ status: "error", message: error.message });
+			return res.status(400).json(error);
+		}
+	}
+
+	public async resetPassword(req: IRequest, res: Response) {
+		try {
+			const email: string = req.params.email;
+
+			await userService.resetPassword(email);
+
+			return res.status(200).json({ status: "success", message: "Ваш аккаунт успешно активирован" });
+		} catch (error: any) {
+			return res.status(400).json({ status: "error", message: error.message });
 		}
 	}
 }
