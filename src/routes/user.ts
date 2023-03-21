@@ -7,7 +7,7 @@ import UserController from "../controllers/UserController.js";
 import signUpValidation from "../middleware/validations/signUp.js";
 import signInValidation from "../middleware/validations/signIn.js";
 
-import paramsActivationIdValidation from "../middleware/validations/paramsActivationId.js";
+import paramsUuidValidation from "../middleware/validations/paramsUUID.js";
 import paramsEmailValidation from "../middleware/validations/paramsEmail.js";
 
 import isAuth from "../middleware/isAuth.js";
@@ -22,8 +22,11 @@ router.get("/refresh", userController.refreshAccount);
 
 router.get("/find/:email", isAuth, paramsEmailValidation, userController.findUserByEmail);
 
-router.get("/activate/:id", paramsActivationIdValidation, userController.activateAccount);
+router.get("/activate/:id", paramsUuidValidation, userController.activateAccount);
 router.get("/mail/again/:email", paramsEmailValidation, userController.againSendActivateMail);
+
 router.get("/password/reset/:email", paramsEmailValidation, userController.resetPassword);
+router.get("/password/new/:id", paramsUuidValidation, userController.newPassword);
+router.post("/password/new/:id", paramsUuidValidation, userController.newPassword);
 
 export default router;

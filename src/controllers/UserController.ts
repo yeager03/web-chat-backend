@@ -20,6 +20,10 @@ export type SignInData = {
 	password: string;
 };
 
+export type NewPasswordData = {
+	password: string;
+};
+
 export default class UserController {
 	public async signUp(req: IRequest, res: Response) {
 		try {
@@ -119,9 +123,32 @@ export default class UserController {
 
 			await userService.resetPassword(email);
 
-			return res.status(200).json({ status: "success", message: "Ваш аккаунт успешно активирован" });
+			return res
+				.status(200)
+				.json({ status: "success", message: "На вашу почту было отправлено письмо со ссылкой для сброса пароля" });
 		} catch (error: any) {
 			return res.status(400).json({ status: "error", message: error.message });
+		}
+	}
+
+	public async newPassword(req: IRequest, res: Response) {
+		try {
+			if (req.method === "GET") {
+				const passwordResetId: string = req.params.id;
+
+				await userService.newPassword("GET", passwordResetId);
+
+				return res.status(200).json({ status: "success" });
+			} else if (req.method === "POST") {
+				const passwordResetId: string = req.params.id;
+				const password: string = req.body.password.trim();
+
+				await userService.newPassword("POST", passwordResetId, password);
+
+				return res.status(200).json({ status: "success", message: "Пароль успешно изменен" });
+			}
+		} catch (error: any) {
+			return res.status(400).json(error);
 		}
 	}
 }

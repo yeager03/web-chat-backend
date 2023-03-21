@@ -147,7 +147,7 @@ class UserService {
 			};
 		}
 
-		if (+new Date() > user.activationIdExpiries) {
+		if (user.activationIdExpiries && +new Date() > user.activationIdExpiries) {
 			throw {
 				status: "expired",
 				message: "Это ссылка больше не действительна",
@@ -156,6 +156,9 @@ class UserService {
 		}
 
 		user.isActivated = true;
+
+		user.activationId = null;
+		user.activationIdExpiries = null;
 
 		await user.save();
 	}
@@ -188,13 +191,45 @@ class UserService {
 			throw new Error("Пользователь с таким email не найден");
 		}
 
-		const newPasswordId = uuidv4();
+		const passwordResetId = uuidv4();
+		const passwordResetIdExpiries = Date.now() + 10 * 60 * 1000;
 
+		user.passwordResetId = passwordResetId;
+		user.passwordResetIdExpiries = passwordResetIdExpiries;
+
+		await user.save();
 		await mailService.resetPasswordMail(
 			email,
 			user.fullName.split(" ")[0],
-			`${process.env.CLIENT_URL}/auth/password/new/${newPasswordId}`
+			`${process.env.CLIENT_URL}/auth/password/new/${passwordResetId}`
 		);
+	}
+
+	public async newPassword(method: string, passwordResetId: string, password: string = "") {
+		const user = await UserModel.findOne({ passwordResetId });
+
+		if (!user) {
+			throw {
+				status: "error",
+				message: "Некорректная ссылка для активации",
+			};
+		}
+
+		if (user.passwordResetIdExpiries && +new Date() > user.passwordResetIdExpiries) {
+			throw {
+				status: "expired",
+				message: "Это ссылка больше не действительна",
+			};
+		}
+
+		if (method === "POST") {
+			user.password = await bcrypt.hash(password, 10);
+
+			user.passwordResetId = null;
+			user.passwordResetIdExpiries = null;
+
+			await user.save();
+		}
 	}
 }
 

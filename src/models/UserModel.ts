@@ -12,8 +12,8 @@ export interface IUser extends Document {
 	passwordResetId: string | null;
 	passwordResetIdExpiries: number | null;
 	isActivated: boolean;
-	activationId: string;
-	activationIdExpiries: number;
+	activationId: string | null;
+	activationIdExpiries: number | null;
 	lastVisit: Date;
 	isOnline: boolean;
 }
@@ -28,8 +28,8 @@ const UserSchema = new Schema<IUser>(
 		passwordResetId: { type: String || null, default: null },
 		passwordResetIdExpiries: { type: Number || null, default: null },
 		isActivated: { type: Boolean, default: false },
-		activationId: { type: String },
-		activationIdExpiries: { type: Number },
+		activationId: { type: String, default: null },
+		activationIdExpiries: { type: Number, default: null },
 		lastVisit: { type: Date, default: new Date() },
 		isOnline: { type: Boolean, default: false },
 	},
