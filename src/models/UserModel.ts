@@ -16,6 +16,8 @@ export interface IUser extends Document {
 	activationIdExpiries: number | null;
 	lastVisit: Date;
 	isOnline: boolean;
+	requests: IUser["_id"][];
+	friends: IUser["_id"][];
 }
 
 const UserSchema = new Schema<IUser>(
@@ -32,6 +34,8 @@ const UserSchema = new Schema<IUser>(
 		activationIdExpiries: { type: Number, default: null },
 		lastVisit: { type: Date, default: new Date() },
 		isOnline: { type: Boolean, default: false },
+		requests: [{ type: Schema.Types.ObjectId, ref: "User" }],
+		friends: [{ type: Schema.Types.ObjectId, ref: "User" }],
 	},
 	{
 		timestamps: true,

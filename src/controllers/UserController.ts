@@ -20,10 +20,6 @@ export type SignInData = {
 	password: string;
 };
 
-export type NewPasswordData = {
-	password: string;
-};
-
 export default class UserController {
 	public async signUp(req: IRequest, res: Response) {
 		try {
@@ -149,6 +145,84 @@ export default class UserController {
 			}
 		} catch (error: any) {
 			return res.status(400).json(error);
+		}
+	}
+
+	public async getFriends(req: IRequest, res: Response) {
+		try {
+			const userId: string = req.user ? req.user._id : "";
+
+			const friends = await userService.getFriends(userId);
+
+			return res.status(200).send({ status: "success", friends });
+		} catch (error: any) {
+			return res.status(400).json({ status: "error", message: error.message });
+		}
+	}
+
+	public async getRequests(req: IRequest, res: Response) {
+		try {
+			const userId: string = req.user ? req.user._id : "";
+
+			const requests = await userService.getRequests(userId);
+
+			return res.status(200).send({ status: "success", requests });
+		} catch (error: any) {
+			return res.status(400).json({ status: "error", message: error.message });
+		}
+	}
+
+	public async friendRequest(req: IRequest, res: Response) {
+		try {
+			const io = req.app.get("io");
+			const senderId: string = req.user ? req.user._id : "";
+			const recipientId: string = req.params.id;
+
+			await userService.friendRequest(senderId, recipientId);
+			io.emit("SERVER:NEW_FRIEND_REQUEST", recipientId);
+
+			return res.status(201).json({ status: "success", message: "Заявка в друзья успешно отправлена" });
+		} catch (error: any) {
+			return res.status(400).json({ status: "error", message: error.message });
+		}
+	}
+
+	public async acceptRequest(req: IRequest, res: Response) {
+		try {
+			const senderId: string = req.params.id;
+			const recipientId: string = req.user ? req.user._id : "";
+
+			await userService.acceptRequest(senderId, recipientId);
+
+			return res.status(200).json({ status: "success", message: "Заявка в друзья принята" });
+		} catch (error: any) {
+			return res.status(400).json({ status: "error", message: error.message });
+		}
+	}
+
+	public async denyRequest(req: IRequest, res: Response) {
+		try {
+			const senderId: string = req.params.id;
+			const recipientId: string = req.user ? req.user._id : "";
+
+			const name = await userService.denyRequest(senderId, recipientId);
+
+			return res.status(200).json({ status: "success", message: `${name} больше не подписан на вас` });
+		} catch (error: any) {
+			return res.status(400).json({ status: "error", message: error.message });
+		}
+	}
+
+	public async removeFriend(req: IRequest, res: Response) {
+		try {
+			const authorId: string = req.user ? req.user._id : "";
+			const friendId: string = req.params.id;
+
+			const name = await userService.removeFriend(authorId, friendId);
+
+			return res.status(200).json({ status: "success", message: `${name} успешно удален из друзей` });
+		} catch (error: any) {
+			return res.status(400).json({ status: "error", message: error.message });
 		}
 	}
 }

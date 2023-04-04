@@ -124,17 +124,13 @@ class UserService {
 	}
 
 	public async findUserByEmail(email: string) {
-		const candidate = await UserModel.findOne({ email });
+		const candidate = await UserModel.findOne({ email }).lean().select("_id email fullName");
 
 		if (!candidate) {
 			throw new Error("Пользователь с таким email не найден");
 		}
 
-		return { ...new UserDto(candidate) };
-	}
-
-	public async getUserById(userId: string) {
-		return UserModel.findById(userId).lean();
+		return candidate;
 	}
 
 	public async activateAccount(activationId: string) {
@@ -143,7 +139,7 @@ class UserService {
 		if (!user) {
 			throw {
 				status: "error",
-				message: "Некорректная ссылка для активации",
+				message: "Некорректная ссылка",
 			};
 		}
 
@@ -211,7 +207,7 @@ class UserService {
 		if (!user) {
 			throw {
 				status: "error",
-				message: "Некорректная ссылка для активации",
+				message: "Некорректная ссылка",
 			};
 		}
 
@@ -230,6 +226,137 @@ class UserService {
 
 			await user.save();
 		}
+	}
+
+	public async getFriends(userId: string) {
+		const user = await UserModel.findOne({ _id: userId }).populate(
+			"friends",
+			"_id email fullName avatar avatarColors lastVisit isOnline"
+		);
+
+		if (!user) {
+			throw new Error("Пользователь не найден");
+		}
+
+		return user.friends;
+	}
+
+	public async getRequests(userId: string) {
+		const user = await UserModel.findOne({ _id: userId }).populate(
+			"requests",
+			"_id email fullName avatar avatarColors lastVisit isOnline"
+		);
+
+		if (!user) {
+			throw new Error("Пользователь не найден");
+		}
+		return user.requests;
+	}
+
+	public async friendRequest(senderId: string, recipientId: string) {
+		if (senderId === recipientId) {
+			throw new Error("Вы не можете отправить заявку самому себе");
+		}
+
+		const sender = await UserModel.findOne({ _id: senderId });
+		const recipient = await UserModel.findOne({ _id: recipientId });
+
+		if (!sender) {
+			throw new Error("Отправитель не найден");
+		}
+
+		if (!recipient) {
+			throw new Error("Получатель не найден");
+		}
+
+		if (recipient.requests.includes(senderId)) {
+			throw new Error("Вы уже отправляли заявку этому человеку, дождитесь ее принятия");
+		}
+
+		if (recipient.friends.includes(senderId)) {
+			throw new Error("Вы уже являетесь друзьями");
+		}
+
+		recipient.requests.push(sender);
+
+		await recipient.save();
+	}
+
+	public async acceptRequest(senderId: string, recipientId: string) {
+		if (senderId === recipientId) {
+			throw new Error("Вы не можете добавить самого себя в друзья");
+		}
+
+		const recipient = await UserModel.findOne({ _id: recipientId });
+		const sender = await UserModel.findOne({ _id: senderId });
+
+		if (!sender) {
+			throw new Error("Отправитель не найден");
+		}
+
+		if (!recipient) {
+			throw new Error("Получатель не найден");
+		}
+
+		if (recipient.friends.includes(senderId)) {
+			throw new Error("Вы уже являетесь друзьями");
+		}
+
+		recipient.requests = recipient.requests.filter((requestId) => requestId.toString() !== senderId);
+
+		recipient.friends.push(senderId);
+		sender.friends.push(recipientId);
+
+		await recipient.save();
+		await sender.save();
+	}
+
+	public async denyRequest(senderId: string, recipientId: string) {
+		const recipient = await UserModel.findOne({ _id: recipientId });
+		const sender = await UserModel.findOne({ _id: senderId });
+
+		if (!sender) {
+			throw new Error("Отправитель не найден");
+		}
+
+		if (!recipient) {
+			throw new Error("Получатель не найден");
+		}
+
+		if (!recipient.requests.includes(senderId)) {
+			throw new Error("Отправитель больше не подписан на вас");
+		}
+
+		recipient.requests = recipient.requests.filter((requestId) => requestId.toString() !== senderId);
+
+		await recipient.save();
+
+		return sender.fullName.split(" ")[0];
+	}
+
+	public async removeFriend(authorId: string, friendId: string) {
+		const author = await UserModel.findOne({ _id: authorId });
+		const friend = await UserModel.findOne({ _id: friendId });
+
+		if (!author) {
+			throw new Error("Автор не найден");
+		}
+
+		if (!friend) {
+			throw new Error("Друг не найден");
+		}
+
+		if (!author.friends.includes(friendId) && !friend.friends.includes(authorId)) {
+			throw new Error("Вы не являетесь друзьями");
+		}
+
+		author.friends = author.friends.filter((id) => id.toString() !== friendId);
+		friend.friends = friend.friends.filter((id) => id.toString() !== authorId);
+
+		await author.save();
+		await friend.save();
+
+		return friend.fullName.split(" ")[0];
 	}
 }
 

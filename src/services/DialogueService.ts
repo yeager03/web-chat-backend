@@ -1,9 +1,9 @@
 // model
 import DialogueModel from "../models/DialogueModel.js";
+import UserModel from "../models/UserModel.js";
 
 // service
 import MessageService from "./MessageService.js";
-import UserService from "./UserService.js";
 
 // utils
 import UserDto from "../utils/dtos/UserDto.js";
@@ -13,25 +13,33 @@ import { CreateDialogueData } from "./../controllers/DialogueController.js";
 
 class DialogueService {
 	public async create(data: CreateDialogueData) {
-		const { author, interlocutor, lastMessage } = data;
+		const { authorId, interlocutorId, lastMessage } = data;
 
-		if (author === interlocutor) {
+		if (authorId === interlocutorId) {
 			throw new Error("Нельзя создать диалог самим собой");
 		}
 
-		const candidate = await UserService.getUserById(interlocutor);
+		const author = await UserModel.findOne({ _id: authorId });
+		const interlocutor = await UserModel.findOne({ _id: interlocutorId });
 
-		if (!candidate) {
+		if (!author) {
+			throw new Error("Автор не найден");
+		}
+
+		if (!interlocutor) {
 			throw new Error("Собеседник не найден");
 		}
 
+		if (!author.friends.includes(interlocutorId) && !interlocutor.friends.includes(authorId)) {
+			throw new Error("Вы не являетесь друзьями");
+		}
+
 		const dialogue = await DialogueModel.create({
-			author,
-			interlocutor,
+			members: [authorId, interlocutorId],
 		});
 
 		const message = await MessageService.create({
-			author,
+			author: authorId,
 			message: lastMessage,
 			dialogueId: dialogue._id,
 		});
@@ -39,40 +47,31 @@ class DialogueService {
 		dialogue.lastMessage = message._id;
 
 		await dialogue.save();
-		return dialogue;
+
+		return dialogue._id;
 	}
 
 	public async getDialogues(authorId: string) {
-		const data = await DialogueModel.find()
-			.or([{ author: authorId }, { interlocutor: authorId }])
+		const data = await DialogueModel.find({ members: authorId })
 			.lean()
 			.populate([
-				"author",
-				"interlocutor",
+				{
+					path: "members",
+					select: "_id email fullName avatar avatarColors lastVisit isOnline",
+				},
 				{
 					path: "lastMessage",
 					populate: [
 						{
 							path: "author",
 							model: "User",
+							select: "_id email fullName avatar avatarColors lastVisit isOnline",
 						},
 					],
 				},
 			]);
 
-		const dialogues = data.map((dialogue) => {
-			return {
-				...dialogue,
-				author: { ...new UserDto(dialogue.author) },
-				interlocutor: { ...new UserDto(dialogue.interlocutor) },
-				lastMessage: {
-					...dialogue.lastMessage,
-					author: { ...new UserDto(dialogue.lastMessage.author) },
-				},
-			};
-		});
-
-		return dialogues;
+		return data;
 	}
 
 	public async removeDialogue(authorId: string) {

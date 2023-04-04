@@ -5,16 +5,14 @@ import { IUser } from "./UserModel.js";
 import { IMessage } from "./MessageModel.js";
 
 export interface IDialogue extends Document {
-	author: IUser["_id"];
-	interlocutor: IUser["_id"];
-	lastMessage: IMessage["_id"] | string | null;
+	members: IUser["_id"][];
+	lastMessage: IMessage["_id"] | null;
 }
 
 const DialogueSchema = new Schema<IDialogue>(
 	{
-		author: { type: Schema.Types.ObjectId, ref: "User", required: true },
-		interlocutor: { type: Schema.Types.ObjectId, ref: "User", required: true },
-		lastMessage: { type: Schema.Types.ObjectId || String, ref: "Message", default: null },
+		members: [{ type: Schema.Types.ObjectId, ref: "User" }],
+		lastMessage: { type: Schema.Types.ObjectId, ref: "Message", default: null },
 	},
 	{
 		timestamps: true,

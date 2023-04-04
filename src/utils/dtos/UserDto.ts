@@ -7,7 +7,6 @@ interface IUserDto {
 		color: string;
 		lighten: string;
 	};
-	isActivated: boolean;
 	lastVisit: Date;
 	isOnline: boolean;
 }
@@ -21,7 +20,6 @@ export default class UserDto {
 		color: string;
 		lighten: string;
 	};
-	public isActivated: boolean;
 	public lastVisit: Date;
 	public isOnline: boolean;
 
@@ -31,7 +29,6 @@ export default class UserDto {
 		this.fullName = model.fullName;
 		this.avatar = model.avatar;
 		this.avatarColors = model.avatarColors;
-		this.isActivated = model.isActivated;
 		this.lastVisit = model.lastVisit;
 		this.isOnline = model.isOnline;
 	}

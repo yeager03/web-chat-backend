@@ -10,9 +10,14 @@ import signInValidation from "../middleware/validations/signIn.js";
 import paramsUuidValidation from "../middleware/validations/paramsUUID.js";
 import paramsEmailValidation from "../middleware/validations/paramsEmail.js";
 
+import paramsIdValidation from "../middleware/validations/paramsId.js";
+
 import isAuth from "../middleware/isAuth.js";
 
+// controller
 const userController = new UserController();
+
+// router
 const router = Router();
 
 router.post("/signup", signUpValidation, userController.signUp);
@@ -28,5 +33,13 @@ router.get("/mail/again/:email", paramsEmailValidation, userController.againSend
 router.get("/password/reset/:email", paramsEmailValidation, userController.resetPassword);
 router.get("/password/new/:id", paramsUuidValidation, userController.newPassword);
 router.post("/password/new/:id", paramsUuidValidation, userController.newPassword);
+
+router.get("/friends", isAuth, userController.getFriends);
+router.get("/requests", isAuth, userController.getRequests);
+
+router.get("/friend/request/:id", isAuth, paramsIdValidation, userController.friendRequest);
+router.get("/friend/accept/:id", isAuth, paramsIdValidation, userController.acceptRequest);
+router.get("/friend/deny/:id", isAuth, paramsIdValidation, userController.denyRequest);
+router.delete("/friend/remove/:id", isAuth, paramsIdValidation, userController.removeFriend);
 
 export default router;

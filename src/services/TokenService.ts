@@ -13,7 +13,6 @@ export type Payload = {
 		color: string;
 		lighten: string;
 	};
-	isActivated: boolean;
 	lastVisit: Date;
 };
 
