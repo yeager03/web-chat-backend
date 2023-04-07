@@ -22,10 +22,10 @@ export default class DialogueController {
 			const data = extractFields(req.body, ["interlocutorId", "lastMessage"], true) as CreateDialogueData;
 			data.authorId = req.user ? req.user?._id : "";
 
-			const dialogueId = await dialogueService.create(data);
-			io.emit("SERVER:DIALOGUE_CREATED", dialogueId);
+			const dialogue = await dialogueService.create(data);
+			io.emit("SERVER:DIALOGUE_CREATED", dialogue);
 
-			return res.status(200).send({ status: "success", message: "Диалог успешно создан" });
+			return res.status(200).send({ status: "success", message: "Диалог успешно создан", dialogue });
 		} catch (error: any) {
 			return res.status(400).json({
 				status: "error",

@@ -23,9 +23,10 @@ export default class MessageController {
 			const data = extractFields(req.body, ["message", "dialogueId"], true) as CreateMessageData;
 			data.author = req.user ? req.user?._id : "";
 
-			const message = await messageService.create(data);
-			io.emit("SERVER:MESSAGE_CREATED", message);
-			io.emit("SERVER:DIALOGUE_CREATED");
+			const { message, dialogue } = await messageService.create(data);
+
+			io.emit("SERVER:MESSAGE_CREATED", await message);
+			io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue, await message);
 
 			return res.status(200).json({
 				status: "success",

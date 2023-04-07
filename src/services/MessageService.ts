@@ -28,7 +28,10 @@ class MessageService {
 		await dialogue.save();
 		await newMessage.populate(["author", "dialogue"]);
 
-		return newMessage.save();
+		return {
+			message: newMessage.save(),
+			dialogue,
+		};
 	}
 
 	public async getMessages(dialogueId: string) {

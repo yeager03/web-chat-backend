@@ -38,17 +38,17 @@ class DialogueService {
 			members: [authorId, interlocutorId],
 		});
 
-		const message = await MessageService.create({
+		const { message } = await MessageService.create({
 			author: authorId,
 			message: lastMessage,
 			dialogueId: dialogue._id,
 		});
 
-		dialogue.lastMessage = message._id;
+		dialogue.lastMessage = (await message)._id;
 
 		await dialogue.save();
 
-		return dialogue._id;
+		return dialogue;
 	}
 
 	public async getDialogues(authorId: string) {
