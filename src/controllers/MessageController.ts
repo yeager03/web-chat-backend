@@ -25,8 +25,8 @@ export default class MessageController {
 
 			const { message, dialogue } = await messageService.create(data);
 
-			io.emit("SERVER:MESSAGE_CREATED", await message);
-			io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue, await message);
+			io.emit("SERVER:MESSAGE_CREATED", message);
+			io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue, message);
 
 			return res.status(200).json({
 				status: "success",

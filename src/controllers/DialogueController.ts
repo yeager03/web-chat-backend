@@ -22,8 +22,10 @@ export default class DialogueController {
 			const data = extractFields(req.body, ["interlocutorId", "lastMessage"], true) as CreateDialogueData;
 			data.authorId = req.user ? req.user?._id : "";
 
-			const dialogue = await dialogueService.create(data);
+			const { dialogue, message } = await dialogueService.create(data);
+
 			io.emit("SERVER:DIALOGUE_CREATED", dialogue);
+			message && io.emit("SERVER:MESSAGE_CREATED", message);
 
 			return res.status(200).send({ status: "success", message: "Диалог успешно создан", dialogue });
 		} catch (error: any) {
@@ -51,7 +53,7 @@ export default class DialogueController {
 
 	public async removeDialogueByAuthorId(req: IRequest, res: Response) {
 		try {
-			const authorId: string = req.params.id; // req.user?._id
+			const authorId: string = req.params.id;
 
 			await dialogueService.removeDialogue(authorId);
 

@@ -29,7 +29,7 @@ class MessageService {
 		await newMessage.populate(["author", "dialogue"]);
 
 		return {
-			message: newMessage.save(),
+			message: await newMessage.save(),
 			dialogue,
 		};
 	}

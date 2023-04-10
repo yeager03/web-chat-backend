@@ -10,13 +10,13 @@ export default async (req: IRequest, res: Response, next: NextFunction): Promise
 	try {
 		const id: string = req.user ? req.user._id : "";
 
-		console.log(id);
+		// console.log(id);
 
 		if (!id) {
 			return next();
 		}
 
-		console.log(req.user);
+		// console.log(req.user);
 
 		const user = await UserModel.findById(id);
 

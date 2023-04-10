@@ -5,9 +5,6 @@ import UserModel from "../models/UserModel.js";
 // service
 import MessageService from "./MessageService.js";
 
-// utils
-import UserDto from "../utils/dtos/UserDto.js";
-
 // types
 import { CreateDialogueData } from "./../controllers/DialogueController.js";
 
@@ -34,21 +31,73 @@ class DialogueService {
 			throw new Error("Вы не являетесь друзьями");
 		}
 
-		const dialogue = await DialogueModel.create({
-			members: [authorId, interlocutorId],
-		});
+		const dialogue = await DialogueModel.findOne({ members: { $all: [authorId, interlocutorId] } });
 
-		const { message } = await MessageService.create({
-			author: authorId,
-			message: lastMessage,
-			dialogueId: dialogue._id,
-		});
+		if (dialogue) {
+			const { message } = await MessageService.create({
+				author: authorId,
+				message: lastMessage,
+				dialogueId: dialogue._id,
+			});
 
-		dialogue.lastMessage = (await message)._id;
+			dialogue.lastMessage = message._id;
 
-		await dialogue.save();
+			await dialogue.save();
 
-		return dialogue;
+			return {
+				dialogue: await dialogue.populate([
+					{
+						path: "members",
+						select: "_id email fullName avatar avatarColors lastVisit isOnline",
+					},
+					{
+						path: "lastMessage",
+						populate: [
+							{
+								path: "author",
+								model: "User",
+								select: "_id email fullName avatar avatarColors lastVisit isOnline",
+							},
+						],
+					},
+				]),
+				message,
+			};
+		} else {
+			const newDialogue = await DialogueModel.create({
+				members: [authorId, interlocutorId],
+			});
+
+			const { message } = await MessageService.create({
+				author: authorId,
+				message: lastMessage,
+				dialogueId: newDialogue._id,
+			});
+
+			newDialogue.lastMessage = message._id;
+
+			await newDialogue.save();
+
+			return {
+				dialogue: await newDialogue.populate([
+					{
+						path: "members",
+						select: "_id email fullName avatar avatarColors lastVisit isOnline",
+					},
+					{
+						path: "lastMessage",
+						populate: [
+							{
+								path: "author",
+								model: "User",
+								select: "_id email fullName avatar avatarColors lastVisit isOnline",
+							},
+						],
+					},
+				]),
+				message: null,
+			};
+		}
 	}
 
 	public async getDialogues(authorId: string) {

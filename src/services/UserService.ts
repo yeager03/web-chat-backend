@@ -17,6 +17,8 @@ import getRandomColors from "../utils/generateRandomColors.js";
 
 // types
 import { SignUpData, SignInData } from "../controllers/UserController.js";
+import DialogueModel from "../models/DialogueModel.js";
+import MessageModel from "../models/MessageModel.js";
 
 class UserService {
 	public async signUp(data: SignUpData) {
@@ -337,6 +339,7 @@ class UserService {
 	public async removeFriend(authorId: string, friendId: string) {
 		const author = await UserModel.findOne({ _id: authorId });
 		const friend = await UserModel.findOne({ _id: friendId });
+		const dialogue = await DialogueModel.findOne({ members: { $all: [authorId, friendId] } });
 
 		if (!author) {
 			throw new Error("Автор не найден");
@@ -356,7 +359,12 @@ class UserService {
 		await author.save();
 		await friend.save();
 
-		return friend.fullName.split(" ")[0];
+		if (dialogue) {
+			await dialogue.deleteOne();
+			await MessageModel.remove({ dialogue: dialogue._id });
+		}
+
+		return { dialogue, name: friend.fullName.split(" ")[0] };
 	}
 }
 

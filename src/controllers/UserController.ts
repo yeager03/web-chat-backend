@@ -92,7 +92,7 @@ export default class UserController {
 
 			await userService.activateAccount(activationId);
 
-			return res.status(200).json({ status: "success", message: "Ваш аккаунт успешно активирован" });
+			return res.status(200).json({ status: "success", message: "Ваш аккаунт был успешно активирован!" });
 		} catch (error: any) {
 			return res.status(400).json(error);
 		}
@@ -189,10 +189,12 @@ export default class UserController {
 
 	public async acceptRequest(req: IRequest, res: Response) {
 		try {
-			const senderId: string = req.params.id;
+			const io = req.app.get("io");
 			const recipientId: string = req.user ? req.user._id : "";
+			const senderId: string = req.params.id;
 
 			await userService.acceptRequest(senderId, recipientId);
+			io.emit("SERVER:NEW_FRIEND_ACCEPT", senderId);
 
 			return res.status(200).json({ status: "success", message: "Заявка в друзья принята" });
 		} catch (error: any) {
@@ -215,10 +217,14 @@ export default class UserController {
 
 	public async removeFriend(req: IRequest, res: Response) {
 		try {
+			const io = req.app.get("io");
 			const authorId: string = req.user ? req.user._id : "";
 			const friendId: string = req.params.id;
 
-			const name = await userService.removeFriend(authorId, friendId);
+			const { name, dialogue } = await userService.removeFriend(authorId, friendId);
+			const members = [authorId, friendId];
+
+			io.emit("SERVER:FRIEND_REMOVE", members, dialogue);
 
 			return res.status(200).json({ status: "success", message: `${name} успешно удален из друзей` });
 		} catch (error: any) {

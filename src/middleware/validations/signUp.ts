@@ -28,7 +28,7 @@ export default (req: IRequest, res: Response, next: NextFunction): Response | vo
 	if (!fullName) {
 		return res.status(422).json({ status: "error", message: "Введите полное имя" });
 	} else if (!patterns.fullName.test(fullName)) {
-		console.log(patterns.fullName);
+		// console.log(patterns.fullName);
 		return res.status(422).json({ status: "error", message: "Имя или фамилия пользователя некорректны" });
 	}
 
