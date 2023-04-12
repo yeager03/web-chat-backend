@@ -8,6 +8,9 @@ import { CreateMessageData } from "../controllers/MessageController.js";
 // utils
 import UserDto from "../utils/dtos/UserDto.js";
 
+// crypto
+import crypto from "crypto-js";
+
 class MessageService {
 	public async create(data: CreateMessageData) {
 		const { author, message, dialogueId } = data;
@@ -22,15 +25,24 @@ class MessageService {
 			throw new Error("Сообщение не может быть пустым");
 		}
 
-		const newMessage = new MessageModel({ author, message, dialogue: dialogueId });
+		const newMessage = new MessageModel({
+			author,
+			message: crypto.AES.encrypt(message, process.env.CRYPTO_KEY || "").toString(),
+			dialogue: dialogueId,
+		});
 		dialogue.lastMessage = newMessage._id;
 
 		await dialogue.save();
-		await newMessage.populate(["author", "dialogue"]);
+		await newMessage.populate([
+			{
+				path: "author",
+				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+		]);
 
 		return {
 			message: await newMessage.save(),
-			dialogue,
+			dialogueId,
 		};
 	}
 
@@ -53,15 +65,15 @@ class MessageService {
 		return messages;
 	}
 
-	public async removeMessage(messageId: string, author: string) {
+	public async removeMessage(messageId: string, authorId: string) {
 		const message = await MessageModel.findById(messageId);
 
 		if (!message) {
-			throw new Error(`Сообщение с id:${messageId} не найдено`);
+			throw new Error(`Сообщение не найдено`);
 		}
 
-		if (message.author.toString() !== author) {
-			throw new Error(`Сообщение с id:${messageId} не принадлежит вам`);
+		if (message.author.toString() !== authorId) {
+			throw new Error(`Вы не являетесь автором данного сообщения`);
 		}
 
 		const dialogue = await DialogueModel.findById(message.dialogue);
@@ -70,13 +82,33 @@ class MessageService {
 			throw new Error("Диалог не найден");
 		}
 
-		const previousMessages = await MessageModel.find({ dialogue: message.dialogue }).sort({ createdAt: -1 });
+		const previousMessage = await MessageModel.findOne({ _id: { $lt: messageId }, dialogue }).sort({
+			_id: -1,
+		});
+		const lastMessageId = dialogue.lastMessage.toString();
 
-		dialogue.lastMessage = previousMessages[1];
+		if (lastMessageId === messageId) {
+			dialogue.lastMessage = previousMessage;
+		}
+
+		if (!previousMessage) {
+			await dialogue.deleteOne();
+			await message.deleteOne();
+
+			return { dialogueId: message.dialogue, message, previousMessage };
+		}
+
+		await previousMessage.populate([
+			{
+				path: "author",
+				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+		]);
 
 		await dialogue.save();
+		await message.deleteOne();
 
-		return message.deleteOne();
+		return { dialogueId: message.dialogue, message, previousMessage };
 	}
 }
 

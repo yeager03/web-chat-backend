@@ -23,10 +23,10 @@ export default class MessageController {
 			const data = extractFields(req.body, ["message", "dialogueId"], true) as CreateMessageData;
 			data.author = req.user ? req.user?._id : "";
 
-			const { message, dialogue } = await messageService.create(data);
+			const { dialogueId, message } = await messageService.create(data);
 
 			io.emit("SERVER:MESSAGE_CREATED", message);
-			io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue, message);
+			io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogueId, message);
 
 			return res.status(200).json({
 				status: "success",
@@ -60,10 +60,15 @@ export default class MessageController {
 
 	public async removeMessageById(req: IRequest, res: Response) {
 		try {
-			const messageId: string = req.params.id;
-			const author = req.user ? req.user?._id : "";
+			const io = req.app.get("io");
 
-			await messageService.removeMessage(messageId, author);
+			const messageId: string = req.params.id;
+			const authorId: string = req.user ? req.user?._id : "";
+
+			const { dialogueId, message, previousMessage } = await messageService.removeMessage(messageId, authorId);
+
+			io.emit("SERVER:MESSAGE_REMOVED", message);
+			io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogueId, previousMessage);
 
 			return res.status(200).json({
 				status: "success",
