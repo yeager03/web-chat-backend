@@ -110,6 +110,41 @@ class MessageService {
 
 		return { dialogueId: message.dialogue, message, previousMessage };
 	}
+
+	public async editMessage(authorId: string, messageId: string, messageText: string) {
+		const message = await MessageModel.findById(messageId);
+
+		if (!message) {
+			throw new Error(`Сообщение не найдено`);
+		}
+
+		if (message.author.toString() !== authorId) {
+			throw new Error(`Вы не являетесь автором данного сообщения`);
+		}
+
+		const dialogue = await DialogueModel.findById(message.dialogue);
+
+		if (!dialogue) {
+			throw new Error("Диалог не найден");
+		}
+
+		message.message = crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString();
+		message.isEdited = true;
+
+		await message.populate([
+			{
+				path: "author",
+				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+		]);
+		await message.save();
+
+		if (dialogue.lastMessage.toString() === messageId) {
+			return { message, dialogueId: message.dialogue };
+		}
+
+		return { message, dialogueId: null };
+	}
 }
 
 export default new MessageService();

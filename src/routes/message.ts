@@ -14,15 +14,16 @@ import updateIsOnline from "../middleware/updateIsOnline.js";
 const messageController = new MessageController();
 const router = Router();
 
-router.get(
-	"/all/:id",
+router.get("/all/:id", isAuth, paramsIdValidation, updateLastVisit, updateIsOnline, messageController.getMessages);
+router.post("/create", isAuth, updateIsOnline, updateLastVisit, messageController.createMessage);
+router.put("/edit/:id", isAuth, paramsIdValidation, updateLastVisit, messageController.editMessage);
+router.delete(
+	"/remove/:id",
 	isAuth,
 	paramsIdValidation,
-	updateLastVisit,
 	updateIsOnline,
-	messageController.getMessagesByDialogueId
+	updateLastVisit,
+	messageController.removeMessage
 );
-router.post("/create", isAuth, updateIsOnline, updateLastVisit, messageController.createMessage);
-router.delete("/:id", isAuth, paramsIdValidation, updateIsOnline, updateLastVisit, messageController.removeMessageById);
 
 export default router;

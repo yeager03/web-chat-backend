@@ -8,6 +8,7 @@ export interface IMessage extends Document {
 	author: IUser["_id"];
 	message: string;
 	dialogue: IDialogue["_id"];
+	isEdited: boolean;
 	unRead: boolean;
 	// attachments: any[]
 }
@@ -17,6 +18,7 @@ const MessageSchema = new Schema<IMessage>(
 		author: { type: Schema.Types.ObjectId, ref: "User", required: true },
 		message: { type: String, required: true },
 		dialogue: { type: Schema.Types.ObjectId, ref: "Dialogue", required: true },
+		isEdited: { type: Boolean, default: false },
 		unRead: { type: Boolean, default: false },
 	},
 	{
