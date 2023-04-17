@@ -9,21 +9,31 @@ import userService from "../services/UserService.js";
 // utils
 import extractFields from "../utils/extractFields.js";
 
-export type SignUpData = {
+export type SignUp = {
 	email: string;
 	fullName: string;
 	password: string;
 };
 
-export type SignInData = {
+export type SignIn = {
 	email: string;
 	password: string;
+};
+
+export type FriendRequest = {
+	senderId: string;
+	recipientId: string;
+};
+
+export type FriendRemove = {
+	authorId: string;
+	friendId: string;
 };
 
 export default class UserController {
 	public async signUp(req: IRequest, res: Response) {
 		try {
-			const data = extractFields(req.body, ["email", "fullName", "password"], true) as SignUpData;
+			const data = extractFields(req.body, ["email", "fullName", "password"], true) as SignUp;
 			await userService.signUp(data);
 
 			return res.status(201).json({ status: "success", message: "Пользователь успешно создан" });
@@ -34,7 +44,7 @@ export default class UserController {
 
 	public async signIn(req: IRequest, res: Response) {
 		try {
-			const data = extractFields(req.body, ["email", "password"]) as SignInData;
+			const data = extractFields(req.body, ["email", "password"]) as SignIn;
 			const userData = await userService.signIn(data);
 
 			res.cookie("refreshToken", userData.refreshToken, {
@@ -175,11 +185,11 @@ export default class UserController {
 	public async friendRequest(req: IRequest, res: Response) {
 		try {
 			const io = req.app.get("io");
+
 			const senderId: string = req.user ? req.user._id : "";
 			const recipientId: string = req.params.id;
 
-			await userService.friendRequest(senderId, recipientId);
-			io.emit("SERVER:NEW_FRIEND_REQUEST", recipientId);
+			await userService.friendRequest({ senderId, recipientId }, io);
 
 			return res.status(201).json({ status: "success", message: "Заявка в друзья успешно отправлена" });
 		} catch (error: any) {
@@ -190,11 +200,11 @@ export default class UserController {
 	public async acceptRequest(req: IRequest, res: Response) {
 		try {
 			const io = req.app.get("io");
-			const recipientId: string = req.user ? req.user._id : "";
-			const senderId: string = req.params.id;
 
-			await userService.acceptRequest(senderId, recipientId);
-			io.emit("SERVER:NEW_FRIEND_ACCEPT", senderId);
+			const senderId: string = req.params.id;
+			const recipientId: string = req.user ? req.user._id : "";
+
+			await userService.acceptRequest({ senderId, recipientId }, io);
 
 			return res.status(200).json({ status: "success", message: "Заявка в друзья принята" });
 		} catch (error: any) {
@@ -207,7 +217,7 @@ export default class UserController {
 			const senderId: string = req.params.id;
 			const recipientId: string = req.user ? req.user._id : "";
 
-			const name = await userService.denyRequest(senderId, recipientId);
+			const name = await userService.denyRequest({ senderId, recipientId });
 
 			return res.status(200).json({ status: "success", message: `${name} больше не подписан на вас` });
 		} catch (error: any) {
@@ -218,13 +228,11 @@ export default class UserController {
 	public async removeFriend(req: IRequest, res: Response) {
 		try {
 			const io = req.app.get("io");
+
 			const authorId: string = req.user ? req.user._id : "";
 			const friendId: string = req.params.id;
 
-			const { name, dialogue } = await userService.removeFriend(authorId, friendId);
-			const members = [authorId, friendId];
-
-			io.emit("SERVER:FRIEND_REMOVE", members, dialogue);
+			const name = await userService.removeFriend({ authorId, friendId }, io);
 
 			return res.status(200).json({ status: "success", message: `${name} успешно удален из друзей` });
 		} catch (error: any) {

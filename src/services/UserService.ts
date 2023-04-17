@@ -1,5 +1,7 @@
 // model
 import UserModel from "../models/UserModel.js";
+import DialogueModel from "../models/DialogueModel.js";
+import MessageModel from "../models/MessageModel.js";
 
 // service
 import mailService from "./MailService.js";
@@ -16,12 +18,11 @@ import UserDto from "../utils/dtos/UserDto.js";
 import getRandomColors from "../utils/generateRandomColors.js";
 
 // types
-import { SignUpData, SignInData } from "../controllers/UserController.js";
-import DialogueModel from "../models/DialogueModel.js";
-import MessageModel from "../models/MessageModel.js";
+import { Server as SocketServer } from "socket.io";
+import { SignUp, SignIn, FriendRequest, FriendRemove } from "../controllers/UserController.js";
 
 class UserService {
-	public async signUp(data: SignUpData) {
+	public async signUp(data: SignUp) {
 		const { email, fullName, password } = data;
 
 		const candidate = await UserModel.findOne({ email }).lean();
@@ -54,7 +55,7 @@ class UserService {
 		);
 	}
 
-	public async signIn(data: SignInData) {
+	public async signIn(data: SignIn) {
 		const { email, password } = data;
 
 		const candidate = await UserModel.findOne({ email });
@@ -255,7 +256,9 @@ class UserService {
 		return user.requests;
 	}
 
-	public async friendRequest(senderId: string, recipientId: string) {
+	public async friendRequest(data: FriendRequest, io: SocketServer) {
+		const { senderId, recipientId } = data;
+
 		if (senderId === recipientId) {
 			throw new Error("Вы не можете отправить заявку самому себе");
 		}
@@ -279,12 +282,16 @@ class UserService {
 			throw new Error("Вы уже являетесь друзьями");
 		}
 
-		recipient.requests.push(sender);
+		await recipient.updateOne({ $push: { requests: sender } });
 
-		await recipient.save();
+		if (recipient.socket_id) {
+			io.to(recipient.socket_id).emit("SERVER:NEW_FRIEND_REQUEST", recipientId, { ...new UserDto(sender) });
+		}
 	}
 
-	public async acceptRequest(senderId: string, recipientId: string) {
+	public async acceptRequest(data: FriendRequest, io: SocketServer) {
+		const { senderId, recipientId } = data;
+
 		if (senderId === recipientId) {
 			throw new Error("Вы не можете добавить самого себя в друзья");
 		}
@@ -304,16 +311,17 @@ class UserService {
 			throw new Error("Вы уже являетесь друзьями");
 		}
 
-		recipient.requests = recipient.requests.filter((requestId) => requestId.toString() !== senderId);
+		await recipient.updateOne({ $pull: { requests: senderId } }).updateOne({ $push: { friends: senderId } });
+		await sender.updateOne({ $push: { friends: recipientId } });
 
-		recipient.friends.push(senderId);
-		sender.friends.push(recipientId);
-
-		await recipient.save();
-		await sender.save();
+		if (sender.socket_id) {
+			io.to(sender.socket_id).emit("SERVER:NEW_FRIEND_ACCEPT", senderId, { ...new UserDto(recipient) });
+		}
 	}
 
-	public async denyRequest(senderId: string, recipientId: string) {
+	public async denyRequest(data: FriendRequest) {
+		const { senderId, recipientId } = data;
+
 		const recipient = await UserModel.findOne({ _id: recipientId });
 		const sender = await UserModel.findOne({ _id: senderId });
 
@@ -329,16 +337,17 @@ class UserService {
 			throw new Error("Отправитель больше не подписан на вас");
 		}
 
-		recipient.requests = recipient.requests.filter((requestId) => requestId.toString() !== senderId);
-
-		await recipient.save();
+		await recipient.updateOne({ $pull: { requests: senderId } });
 
 		return sender.fullName.split(" ")[0];
 	}
 
-	public async removeFriend(authorId: string, friendId: string) {
+	public async removeFriend(data: FriendRemove, io: SocketServer) {
+		const { authorId, friendId } = data;
+
 		const author = await UserModel.findOne({ _id: authorId });
 		const friend = await UserModel.findOne({ _id: friendId });
+
 		const dialogue = await DialogueModel.findOne({ members: { $all: [authorId, friendId] } });
 
 		if (!author) {
@@ -353,18 +362,20 @@ class UserService {
 			throw new Error("Вы не являетесь друзьями");
 		}
 
-		author.friends = author.friends.filter((id) => id.toString() !== friendId);
-		friend.friends = friend.friends.filter((id) => id.toString() !== authorId);
-
-		await author.save();
-		await friend.save();
+		await author.updateOne({ $pull: { friends: friendId } });
+		await friend.updateOne({ $pull: { friends: authorId } });
 
 		if (dialogue) {
 			await dialogue.deleteOne();
 			await MessageModel.remove({ dialogue: dialogue._id });
 		}
 
-		return { dialogue, name: friend.fullName.split(" ")[0] };
+		if (author.socket_id && friend.socket_id) {
+			io.to(author.socket_id).emit("SERVER:FRIEND_REMOVE", [authorId, friendId], dialogue);
+			io.to(friend.socket_id).emit("SERVER:FRIEND_REMOVE", [authorId, friendId], dialogue);
+		}
+
+		return friend.fullName.split(" ")[0];
 	}
 }
 

@@ -9,10 +9,21 @@ import messageService from "../services/MessageService.js";
 // utils
 import extractFields from "../utils/extractFields.js";
 
-export type CreateMessageData = {
-	author: string;
-	message: string;
+export type CreateMessage = {
+	messageAuthor: string;
+	messageText: string;
 	dialogueId: string;
+};
+
+export type RemoveMessage = {
+	authorId: string;
+	messageId: string;
+};
+
+export type EditMessage = {
+	authorId: string;
+	messageId: string;
+	messageText: string;
 };
 
 export default class MessageController {
@@ -38,13 +49,10 @@ export default class MessageController {
 		try {
 			const io = req.app.get("io");
 
-			const data = extractFields(req.body, ["message", "dialogueId"], true) as CreateMessageData;
-			data.author = req.user ? req.user?._id : "";
+			const data = extractFields(req.body, ["messageText", "dialogueId"], true) as CreateMessage;
+			data.messageAuthor = req.user ? req.user?._id : "";
 
-			const { dialogueId, message } = await messageService.create(data);
-
-			io.emit("SERVER:MESSAGE_CREATED", message);
-			io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogueId, message);
+			await messageService.create(data, io);
 
 			return res.status(200).json({
 				status: "success",
@@ -62,13 +70,10 @@ export default class MessageController {
 		try {
 			const io = req.app.get("io");
 
-			const messageId: string = req.params.id;
 			const authorId: string = req.user ? req.user?._id : "";
+			const messageId: string = req.params.id;
 
-			const { dialogueId, message, previousMessage } = await messageService.removeMessage(messageId, authorId);
-
-			io.emit("SERVER:MESSAGE_DELETED", message);
-			io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogueId, previousMessage);
+			await messageService.removeMessage({ authorId, messageId }, io);
 
 			return res.status(200).json({
 				status: "success",
@@ -86,14 +91,11 @@ export default class MessageController {
 		try {
 			const io = req.app.get("io");
 
-			const messageId: string = req.params.id;
 			const authorId: string = req.user ? req.user?._id : "";
+			const messageId: string = req.params.id;
 			const messageText: string = req.body.message.trim();
 
-			const { message, dialogueId } = await messageService.editMessage(authorId, messageId, messageText);
-
-			io.emit("SERVER:MESSAGE_EDITED", message);
-			dialogueId && io.emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogueId, message);
+			await messageService.editMessage({ authorId, messageId, messageText }, io);
 
 			return res.status(200).json({
 				status: "success",

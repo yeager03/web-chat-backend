@@ -6,11 +6,12 @@ import UserModel from "../models/UserModel.js";
 import MessageService from "./MessageService.js";
 
 // types
-import { CreateDialogueData } from "./../controllers/DialogueController.js";
+import { CreateDialogue } from "./../controllers/DialogueController.js";
+import { Server as SocketServer } from "socket.io";
 
 class DialogueService {
-	public async create(data: CreateDialogueData) {
-		const { authorId, interlocutorId, lastMessage } = data;
+	public async create(data: CreateDialogue, io: SocketServer) {
+		const { authorId, interlocutorId, lastMessageText } = data;
 
 		if (authorId === interlocutorId) {
 			throw new Error("Нельзя создать диалог самим собой");
@@ -34,69 +35,77 @@ class DialogueService {
 		const dialogue = await DialogueModel.findOne({ members: { $all: [authorId, interlocutorId] } });
 
 		if (dialogue) {
-			const { message } = await MessageService.create({
-				author: authorId,
-				message: lastMessage,
+			const message = await MessageService.create({
+				messageAuthor: authorId,
+				messageText: lastMessageText,
 				dialogueId: dialogue._id,
 			});
 
 			dialogue.lastMessage = message._id;
 
+			await dialogue.populate([
+				{
+					path: "members",
+					select: "_id email fullName avatar avatarColors lastVisit isOnline",
+				},
+				{
+					path: "lastMessage",
+					populate: [
+						{
+							path: "author",
+							model: "User",
+							select: "_id email fullName avatar avatarColors lastVisit isOnline",
+						},
+					],
+				},
+			]);
 			await dialogue.save();
 
-			return {
-				dialogue: await dialogue.populate([
-					{
-						path: "members",
-						select: "_id email fullName avatar avatarColors lastVisit isOnline",
-					},
-					{
-						path: "lastMessage",
-						populate: [
-							{
-								path: "author",
-								model: "User",
-								select: "_id email fullName avatar avatarColors lastVisit isOnline",
-							},
-						],
-					},
-				]),
-				message,
-			};
+			if (author.socket_id && interlocutor.socket_id) {
+				io.to(author.socket_id).emit("SERVER:MESSAGE_CREATED", message);
+				io.to(interlocutor.socket_id).emit("SERVER:MESSAGE_CREATED", message);
+
+				io.to(author.socket_id).emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue._id, message);
+				io.to(interlocutor.socket_id).emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue._id, message);
+			}
+
+			return dialogue;
 		} else {
-			const newDialogue = await DialogueModel.create({
+			const new_dialogue = await DialogueModel.create({
 				members: [authorId, interlocutorId],
 			});
 
-			const { message } = await MessageService.create({
-				author: authorId,
-				message: lastMessage,
-				dialogueId: newDialogue._id,
+			const message = await MessageService.create({
+				messageAuthor: authorId,
+				messageText: lastMessageText,
+				dialogueId: new_dialogue._id,
 			});
 
-			newDialogue.lastMessage = message._id;
+			new_dialogue.lastMessage = message._id;
+			await new_dialogue.populate([
+				{
+					path: "members",
+					select: "_id email fullName avatar avatarColors lastVisit isOnline",
+				},
+				{
+					path: "lastMessage",
+					populate: [
+						{
+							path: "author",
+							model: "User",
+							select: "_id email fullName avatar avatarColors lastVisit isOnline",
+						},
+					],
+				},
+			]);
+			await new_dialogue.save();
 
-			await newDialogue.save();
+			if (author.socket_id && interlocutor.socket_id) {
+				io.to(author.socket_id).emit("SERVER:DIALOGUE_CREATED", new_dialogue);
+				io.to(interlocutor.socket_id).emit("SERVER:DIALOGUE_CREATED", new_dialogue);
+			}
 
-			return {
-				dialogue: await newDialogue.populate([
-					{
-						path: "members",
-						select: "_id email fullName avatar avatarColors lastVisit isOnline",
-					},
-					{
-						path: "lastMessage",
-						populate: [
-							{
-								path: "author",
-								model: "User",
-								select: "_id email fullName avatar avatarColors lastVisit isOnline",
-							},
-						],
-					},
-				]),
-				message: null,
-			};
+			return new_dialogue;
 		}
 	}
 
@@ -123,6 +132,7 @@ class DialogueService {
 		return data;
 	}
 
+	// ?
 	public async removeDialogue(authorId: string) {
 		const dialogue = await DialogueModel.findOne({ author: authorId });
 

@@ -9,23 +9,20 @@ import { IRequest } from "../types/IRequest.js";
 // utils
 import extractFields from "../utils/extractFields.js";
 
-export type CreateDialogueData = {
+export type CreateDialogue = {
 	authorId: string;
 	interlocutorId: string;
-	lastMessage: string;
+	lastMessageText: string;
 };
 
 export default class DialogueController {
 	public async createDialogue(req: IRequest, res: Response) {
 		try {
 			const io = req.app.get("io");
-			const data = extractFields(req.body, ["interlocutorId", "lastMessage"], true) as CreateDialogueData;
+			const data = extractFields(req.body, ["interlocutorId", "lastMessageText"], true) as CreateDialogue;
 			data.authorId = req.user ? req.user?._id : "";
 
-			const { dialogue, message } = await dialogueService.create(data);
-
-			io.emit("SERVER:DIALOGUE_CREATED", dialogue);
-			message && io.emit("SERVER:MESSAGE_CREATED", message);
+			const dialogue = await dialogueService.create(data, io);
 
 			return res.status(200).send({ status: "success", message: "Диалог успешно создан", dialogue });
 		} catch (error: any) {
@@ -51,6 +48,7 @@ export default class DialogueController {
 		}
 	}
 
+	// ?
 	public async removeDialogueByAuthorId(req: IRequest, res: Response) {
 		try {
 			const authorId: string = req.params.id;
