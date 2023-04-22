@@ -2,19 +2,46 @@
 import MessageModel from "../models/MessageModel.js";
 import DialogueModel from "../models/DialogueModel.js";
 
+// service
+import fileService from "../services/FileService.js";
+
 // types
 import { Server as SocketServer } from "socket.io";
-import { CreateMessage, EditMessage, RemoveMessage } from "../controllers/MessageController.js";
+import { CreateMessage, EditMessage, GetMessages, RemoveMessage } from "../controllers/MessageController.js";
 
 // crypto
 import crypto from "crypto-js";
 
 class MessageService {
-	public async getMessages(dialogueId: string) {
+	public async getMessages(data: GetMessages, io: SocketServer) {
+		const { dialogueId, userId } = data;
 		const existDialogue = await DialogueModel.findById(dialogueId).lean();
 
 		if (!existDialogue) {
 			throw new Error(`Диалог с id:${dialogueId} не найден`);
+		}
+
+		const notReadData = await MessageModel.find({
+			dialogue: dialogueId,
+			author: { $ne: userId },
+			isRead: false,
+		}).populate("author", "_id socket_id");
+
+		if (notReadData.length) {
+			const interlocutorSocketId = notReadData[0].author.socket_id;
+			const updatedMessagesId = notReadData.map((item) => item._id);
+
+			await MessageModel.updateMany(
+				{
+					dialogue: dialogueId,
+					author: { $ne: userId },
+				},
+				{
+					isRead: true,
+				}
+			);
+
+			io.to(interlocutorSocketId).emit("SERVER:MESSAGES_READ", updatedMessagesId);
 		}
 
 		const messages = await MessageModel.find({ dialogue: dialogueId })
@@ -25,13 +52,17 @@ class MessageService {
 					path: "author",
 					select: "_id email fullName avatar avatarColors lastVisit isOnline",
 				},
+				{
+					path: "files",
+					select: "_id fileName url size extension",
+				},
 			]);
 
 		return messages;
 	}
 
 	public async create(data: CreateMessage, io: SocketServer | null = null) {
-		const { messageAuthor, messageText, dialogueId } = data;
+		const { messageAuthor, messageText, dialogueId, files } = data;
 
 		const dialogue = await DialogueModel.findById(dialogueId);
 
@@ -39,22 +70,46 @@ class MessageService {
 			throw new Error(`Диалог с id:${dialogueId} не найден`);
 		}
 
-		if (!messageText) {
+		if (!messageText && !files?.length) {
 			throw new Error("Сообщение не может быть пустым");
 		}
 
+		const messageValue = messageText.trim()
+			? crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString()
+			: null;
+
 		const message = new MessageModel({
 			author: messageAuthor,
-			message: crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString(),
+			message: messageValue,
 			dialogue: dialogueId,
+			files: [],
 		});
 		dialogue.lastMessage = message._id;
 
-		await dialogue.populate("members", "socket_id");
-		await dialogue.save();
+		const uploadedFiles = files?.length
+			? await fileService.createFile(
+					files as { [fieldname: string]: Express.Multer.File },
+					messageAuthor,
+					message._id
+			  )
+			: [];
 
-		await message.populate("author", "_id email fullName avatar avatarColors lastVisit isOnline");
+		message.files = uploadedFiles;
+
 		await message.save();
+		await message.populate([
+			{
+				path: "author",
+				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+			{
+				path: "files",
+				select: "_id fileName url size extension",
+			},
+		]);
+
+		await dialogue.save();
+		await dialogue.populate("members", "socket_id");
 
 		if (io) {
 			dialogue.members.forEach((user) => {
@@ -98,6 +153,7 @@ class MessageService {
 
 		if (!previousMessage) {
 			await message.deleteOne();
+			message.files.length && (await fileService.removeFile(messageId, authorId));
 			await dialogue.deleteOne();
 
 			return dialogue.members.forEach((user) => {
@@ -110,6 +166,7 @@ class MessageService {
 
 		await dialogue.save();
 		await message.deleteOne();
+		message.files.length && (await fileService.removeFile(messageId, authorId));
 
 		return dialogue.members.forEach((user) => {
 			io.to(user.socket_id).emit("SERVER:MESSAGE_DELETED", message);

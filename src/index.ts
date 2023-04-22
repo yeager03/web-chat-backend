@@ -1,5 +1,11 @@
 import express, { Express } from "express";
 
+// path
+import path from "path";
+
+// fs
+import fs from "fs";
+
 // http
 import http, { Server } from "http";
 
@@ -37,15 +43,23 @@ const io: SocketServer = new SocketServer(server, {
 // port
 const PORT = process.env.PORT || 3001;
 
+const __dirname = path.resolve();
+
 // middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// cors
 app.use(
 	cors({
 		origin: process.env.CLIENT_URL,
 		credentials: true,
 	})
 );
+
+// static
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* routes */
 app.use("/user", userRoutes);
@@ -58,6 +72,14 @@ const start = async () => {
 		socket(io);
 
 		app.set("io", io);
+
+		if (!fs.existsSync(path.join(__dirname, "uploads"))) {
+			fs.mkdir(path.join(__dirname, "uploads"), (err) => {
+				if (err) {
+					throw new Error(err.message);
+				}
+			});
+		}
 
 		server.listen(PORT, () => {
 			console.log(`⚡️[server]: Server is running at http://localhost:${PORT}`);

@@ -24,10 +24,12 @@ export default (io: SocketServer): void => {
 
 		socket.on("CLIENT:JOIN_ROOM", async (dialogueId: string) => {
 			socket.join(dialogueId);
+			console.log(`User with id:${socket.id} joined to room`);
 		});
 
 		socket.on("CLIENT:LEAVE_ROOM", async (dialogueId: string) => {
 			socket.leave(dialogueId);
+			console.log(`User with id:${socket.id} left from room`);
 		});
 
 		socket.on("CLIENT:MESSAGE_TYPING", async (data: Typing) => {

@@ -9,10 +9,23 @@ import messageService from "../services/MessageService.js";
 // utils
 import extractFields from "../utils/extractFields.js";
 
+export type GetMessages = {
+	dialogueId: string;
+	userId: string;
+};
+
+export type IFile =
+	| {
+			[fieldname: string]: Express.Multer.File;
+	  }
+	| Express.Multer.File[]
+	| undefined;
+
 export type CreateMessage = {
 	messageAuthor: string;
 	messageText: string;
 	dialogueId: string;
+	files: IFile;
 };
 
 export type RemoveMessage = {
@@ -29,9 +42,12 @@ export type EditMessage = {
 export default class MessageController {
 	public async getMessages(req: IRequest, res: Response) {
 		try {
-			const dialogueId: string = req.params.id;
+			const io = req.app.get("io");
 
-			const messages = await messageService.getMessages(dialogueId);
+			const dialogueId: string = req.params.id;
+			const userId: string = req.user ? req.user._id : "";
+
+			const messages = await messageService.getMessages({ dialogueId, userId }, io);
 
 			return res.status(200).json({
 				status: "success",
@@ -51,6 +67,7 @@ export default class MessageController {
 
 			const data = extractFields(req.body, ["messageText", "dialogueId"], true) as CreateMessage;
 			data.messageAuthor = req.user ? req.user?._id : "";
+			data.files = req.files?.length ? (req.files as IFile) : [];
 
 			await messageService.create(data, io);
 

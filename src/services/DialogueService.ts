@@ -39,6 +39,7 @@ class DialogueService {
 				messageAuthor: authorId,
 				messageText: lastMessageText,
 				dialogueId: dialogue._id,
+				files: [],
 			});
 
 			dialogue.lastMessage = message._id;
@@ -79,9 +80,11 @@ class DialogueService {
 				messageAuthor: authorId,
 				messageText: lastMessageText,
 				dialogueId: new_dialogue._id,
+				files: [],
 			});
 
 			new_dialogue.lastMessage = message._id;
+
 			await new_dialogue.populate([
 				{
 					path: "members",
