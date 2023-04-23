@@ -34,9 +34,10 @@ export type RemoveMessage = {
 };
 
 export type EditMessage = {
-	authorId: string;
 	messageId: string;
+	messageAuthorId: string;
 	messageText: string;
+	files: IFile;
 };
 
 export default class MessageController {
@@ -108,11 +109,11 @@ export default class MessageController {
 		try {
 			const io = req.app.get("io");
 
-			const authorId: string = req.user ? req.user?._id : "";
-			const messageId: string = req.params.id;
-			const messageText: string = req.body.message.trim();
+			const data = extractFields(req.body, ["messageId", "messageText"], true) as EditMessage;
+			data.messageAuthorId = req.user ? req.user?._id : "";
+			data.files = req.files?.length ? (req.files as IFile) : [];
 
-			await messageService.editMessage({ authorId, messageId, messageText }, io);
+			await messageService.editMessage(data, io);
 
 			return res.status(200).json({
 				status: "success",

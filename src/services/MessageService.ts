@@ -175,7 +175,7 @@ class MessageService {
 	}
 
 	public async editMessage(data: EditMessage, io: SocketServer) {
-		const { authorId, messageId, messageText } = data;
+		const { messageAuthorId, messageId, messageText, files } = data;
 
 		const message = await MessageModel.findById(messageId);
 
@@ -183,7 +183,7 @@ class MessageService {
 			throw new Error("Сообщение не найдено");
 		}
 
-		if (message.author.toString() !== authorId) {
+		if (message.author.toString() !== messageAuthorId) {
 			throw new Error("Вы не являетесь автором данного сообщения");
 		}
 
@@ -195,11 +195,35 @@ class MessageService {
 
 		await dialogue.populate("members", "socket_id");
 
-		message.message = crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString();
+		message.message = messageText.trim()
+			? crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString()
+			: null;
+
+		await fileService.removeFile(messageId, messageAuthorId);
+
+		message.files = files?.length
+			? await fileService.createFile(
+					files as { [fieldname: string]: Express.Multer.File },
+					messageAuthorId,
+					messageId
+			  )
+			: [];
+
 		message.isEdited = true;
 
-		await message.populate("author", "_id email fullName avatar avatarColors lastVisit isOnline");
 		await message.save();
+		await message.populate([
+			{
+				path: "author",
+				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+			{
+				path: "files",
+				select: "_id fileName url size extension",
+			},
+		]);
+
+		console.log(message);
 
 		if (dialogue.lastMessage.toString() === messageId) {
 			return dialogue.members.forEach((user) => {
