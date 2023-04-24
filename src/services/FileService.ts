@@ -8,7 +8,12 @@ import path from "path";
 import FileModel, { IFile } from "../models/FileModel.js";
 
 class FileService {
-	public async createFile(files: { [fieldname: string]: Express.Multer.File }, author: string, message: string) {
+	public async createFile(
+		files: { [fieldname: string]: Express.Multer.File },
+		author: string,
+		message: string,
+		fileDirName: string
+	) {
 		const uploadedFilesId: IFile[] = [];
 
 		for (let key in files) {
@@ -18,7 +23,7 @@ class FileService {
 			const fileName = file.originalname;
 			const filePath = file.path;
 			const size = file.size;
-			const url = `${process.env.API_URL}/uploads/${file.filename}`;
+			const url = `${process.env.API_URL}/uploads/${fileDirName}/${file.filename}`;
 			const extension = file.mimetype.split("/")[1];
 
 			const uploadedFile = new FileModel({

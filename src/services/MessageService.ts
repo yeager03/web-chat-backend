@@ -90,7 +90,8 @@ class MessageService {
 			? await fileService.createFile(
 					files as { [fieldname: string]: Express.Multer.File },
 					messageAuthor,
-					message._id
+					message._id,
+					"messages"
 			  )
 			: [];
 
@@ -205,7 +206,8 @@ class MessageService {
 			? await fileService.createFile(
 					files as { [fieldname: string]: Express.Multer.File },
 					messageAuthorId,
-					messageId
+					messageId,
+					"messages"
 			  )
 			: [];
 

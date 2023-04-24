@@ -16,8 +16,14 @@ const messageController = new MessageController();
 const router = Router();
 
 router.get("/all/:id", isAuth, paramsIdValidation, messageController.getMessages);
-router.post("/create", isAuth, upload.array("files", 5), messageController.createMessage);
-router.put("/edit/:id", isAuth, paramsIdValidation, upload.array("files", 5), messageController.editMessage);
+router.post("/create", isAuth, upload("messages/").array("files", 5), messageController.createMessage);
+router.put(
+	"/edit/:id",
+	isAuth,
+	paramsIdValidation,
+	upload("messages/").array("files", 5),
+	messageController.editMessage
+);
 router.delete("/remove/:id", isAuth, paramsIdValidation, messageController.removeMessage);
 
 export default router;
