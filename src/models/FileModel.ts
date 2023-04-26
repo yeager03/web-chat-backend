@@ -11,7 +11,7 @@ export interface IFile extends Document {
 	url: string;
 	extension: string;
 	author: IUser["_id"];
-	message: IMessage["_id"];
+	message: IMessage["_id"] | null;
 }
 
 const FileSchema = new Schema<IFile>(
@@ -22,7 +22,7 @@ const FileSchema = new Schema<IFile>(
 		url: { type: String, required: true },
 		extension: { type: String, required: true },
 		author: { type: Schema.Types.ObjectId, ref: "User", required: true },
-		message: { type: Schema.Types.ObjectId, ref: "Message", required: true },
+		message: { type: Schema.Types.ObjectId, ref: "Message", default: null },
 	},
 	{
 		timestamps: true,

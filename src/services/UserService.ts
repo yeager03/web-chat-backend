@@ -6,6 +6,7 @@ import MessageModel from "../models/MessageModel.js";
 // service
 import mailService from "./MailService.js";
 import tokenService from "./TokenService.js";
+import fileService from "../services/FileService.js";
 
 // bcrypt
 import bcrypt from "bcrypt";
@@ -19,7 +20,7 @@ import getRandomColors from "../utils/generateRandomColors.js";
 
 // types
 import { Server as SocketServer } from "socket.io";
-import { SignUp, SignIn, FriendRequest, FriendRemove } from "../controllers/UserController.js";
+import { SignUp, SignIn, FriendRequest, FriendRemove, EditProfile } from "../controllers/UserController.js";
 
 class UserService {
 	public async signUp(data: SignUp) {
@@ -74,6 +75,10 @@ class UserService {
 			throw new Error("Пожалуйста, подтвердите свою почту");
 		}
 
+		if (candidate.avatar) {
+			await candidate.populate("avatar", "_id fileName url size extension");
+		}
+
 		const userDto = new UserDto(candidate);
 		const tokens = tokenService.generateTokens({ ...userDto });
 
@@ -108,11 +113,15 @@ class UserService {
 			throw new Error("Пользователь не авторизован");
 		}
 
-		const user = await UserModel.findById(userData._id).lean();
+		const user = await UserModel.findById(userData._id);
 
 		if (!user) {
 			await tokenService.removeToken(refreshToken);
 			throw new Error("Пользователь не найден");
+		}
+
+		if (user.avatar) {
+			await user.populate("avatar", "_id fileName url size extension");
 		}
 
 		const userDto = new UserDto(user);
@@ -232,10 +241,20 @@ class UserService {
 	}
 
 	public async getFriends(userId: string) {
-		const user = await UserModel.findOne({ _id: userId }).populate(
-			"friends",
-			"_id email fullName avatar avatarColors lastVisit isOnline"
-		);
+		const user = await UserModel.findById(userId).populate([
+			{
+				path: "friends",
+				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+			{
+				path: "friends",
+				populate: {
+					path: "avatar",
+					select: "_id fileName url size extension",
+					model: "File",
+				},
+			},
+		]);
 
 		if (!user) {
 			throw new Error("Пользователь не найден");
@@ -245,10 +264,20 @@ class UserService {
 	}
 
 	public async getRequests(userId: string) {
-		const user = await UserModel.findOne({ _id: userId }).populate(
-			"requests",
-			"_id email fullName avatar avatarColors lastVisit isOnline"
-		);
+		const user = await UserModel.findById(userId).populate([
+			{
+				path: "requests",
+				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+			{
+				path: "requests",
+				populate: {
+					path: "avatar",
+					select: "_id fileName url size extension",
+					model: "File",
+				},
+			},
+		]);
 
 		if (!user) {
 			throw new Error("Пользователь не найден");
@@ -284,6 +313,10 @@ class UserService {
 
 		await recipient.updateOne({ $push: { requests: sender } });
 
+		if (sender.avatar) {
+			await sender.populate("avatar", "_id fileName url size extension");
+		}
+
 		if (recipient.socket_id) {
 			io.to(recipient.socket_id).emit("SERVER:NEW_FRIEND_REQUEST", recipientId, { ...new UserDto(sender) });
 		}
@@ -314,7 +347,14 @@ class UserService {
 		await recipient.updateOne({ $pull: { requests: senderId } }).updateOne({ $push: { friends: senderId } });
 		await sender.updateOne({ $push: { friends: recipientId } });
 
+		if (recipient.avatar) {
+			await recipient.populate("avatar", "_id fileName url size extension");
+		}
+
 		if (sender.socket_id) {
+			console.log("sender fullName:", sender.fullName);
+			console.log("sender socket_id:", sender.socket_id);
+			console.log("sender id:", senderId);
 			io.to(sender.socket_id).emit("SERVER:NEW_FRIEND_ACCEPT", senderId, { ...new UserDto(recipient) });
 		}
 	}
@@ -367,7 +407,16 @@ class UserService {
 
 		if (dialogue) {
 			await dialogue.deleteOne();
-			await MessageModel.remove({ dialogue: dialogue._id });
+			const messages = await MessageModel.find({ dialogue: dialogue._id });
+
+			messages.forEach(async (message) => {
+				if (message.files.length) {
+					await fileService.removeFile(authorId, message?._id);
+					await fileService.removeFile(friendId, message?._id);
+				}
+			});
+
+			await MessageModel.deleteMany({ dialogue: dialogue._id });
 		}
 
 		if (author.socket_id && friend.socket_id) {
@@ -376,6 +425,33 @@ class UserService {
 		}
 
 		return friend.fullName.split(" ")[0];
+	}
+
+	public async editProfile(data: EditProfile) {
+		const { authorId, fullName, about_me, file } = data;
+
+		const user = await UserModel.findById(authorId);
+
+		if (!user) {
+			throw new Error("Пользователь не найден");
+		}
+
+		if (user.avatar) {
+			await fileService.removeFile(authorId);
+		}
+
+		if (file) {
+			user.avatar = await fileService.createFile([file], authorId, "profile");
+		}
+
+		user.fullName = fullName;
+		user.about_me = about_me.trim() ? about_me : null;
+
+		await user.save();
+		await user.populate("avatar", "_id fileName url size extension");
+
+		const userDto = new UserDto(user);
+		return { ...userDto };
 	}
 }
 

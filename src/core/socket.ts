@@ -39,6 +39,7 @@ export default (io: SocketServer): void => {
 		socket.on("logout", async () => {
 			await UserModel.findByIdAndUpdate(user_id, {
 				isOnline: false,
+				socket_id: null,
 			});
 
 			socket.disconnect();
@@ -48,6 +49,7 @@ export default (io: SocketServer): void => {
 		socket.on("disconnect", async () => {
 			await UserModel.findByIdAndUpdate(user_id, {
 				isOnline: false,
+				socket_id: null,
 			});
 
 			socket.disconnect();

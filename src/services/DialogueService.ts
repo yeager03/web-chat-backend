@@ -50,6 +50,14 @@ class DialogueService {
 					select: "_id email fullName avatar avatarColors lastVisit isOnline",
 				},
 				{
+					path: "members",
+					populate: {
+						path: "avatar",
+						select: "_id fileName url size extension",
+						model: "File",
+					},
+				},
+				{
 					path: "lastMessage",
 					populate: [
 						{
@@ -91,6 +99,14 @@ class DialogueService {
 					select: "_id email fullName avatar avatarColors lastVisit isOnline",
 				},
 				{
+					path: "members",
+					populate: {
+						path: "avatar",
+						select: "_id fileName url size extension",
+						model: "File",
+					},
+				},
+				{
 					path: "lastMessage",
 					populate: [
 						{
@@ -119,6 +135,14 @@ class DialogueService {
 				{
 					path: "members",
 					select: "_id email fullName avatar avatarColors lastVisit isOnline",
+				},
+				{
+					path: "members",
+					populate: {
+						path: "avatar",
+						select: "_id fileName url size extension",
+						model: "File",
+					},
 				},
 				{
 					path: "lastMessage",

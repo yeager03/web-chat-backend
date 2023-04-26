@@ -1,9 +1,13 @@
 import { Schema, Document, model } from "mongoose";
 
+// types
+import { IFile } from "./FileModel.js";
+
 export interface IUser extends Document {
 	email: string;
 	fullName: string;
-	avatar: string | null;
+	about_me: string | null;
+	avatar: IFile["_id"] | null;
 	avatarColors: {
 		color: string;
 		lighten: string;
@@ -25,7 +29,8 @@ const UserSchema = new Schema<IUser>(
 	{
 		email: { type: String, required: true, trim: true, unique: true },
 		fullName: { type: String, required: true, trim: true },
-		avatar: { type: String, default: null },
+		about_me: { type: String, default: null },
+		avatar: { type: Schema.Types.ObjectId, ref: "File", default: null },
 		avatarColors: { type: Object },
 		password: { type: String, required: true, trim: true },
 		passwordResetId: { type: String || null, default: null },

@@ -30,6 +30,13 @@ export type FriendRemove = {
 	friendId: string;
 };
 
+export type EditProfile = {
+	authorId: string;
+	fullName: string;
+	about_me: string;
+	file: Express.Multer.File | undefined | null;
+};
+
 export default class UserController {
 	public async signUp(req: IRequest, res: Response) {
 		try {
@@ -235,6 +242,20 @@ export default class UserController {
 			const name = await userService.removeFriend({ authorId, friendId }, io);
 
 			return res.status(200).json({ status: "success", message: `${name} успешно удален из друзей` });
+		} catch (error: any) {
+			return res.status(400).json({ status: "error", message: error.message });
+		}
+	}
+
+	public async editProfile(req: IRequest, res: Response) {
+		try {
+			const data = extractFields(req.body, ["fullName", "about_me"], true) as EditProfile;
+			data.authorId = req.user ? req.user._id : "";
+			data.file = req.file ? req.file : null;
+
+			const user = await userService.editProfile(data);
+
+			return res.status(200).json({ status: "success", message: "Вы успешно изменили профиль", user });
 		} catch (error: any) {
 			return res.status(400).json({ status: "error", message: error.message });
 		}

@@ -29,7 +29,7 @@ const multer = (fileDirName: string) => {
 		storage,
 		limits: { fileSize: 5000000 },
 		fileFilter(req, file, cb) {
-			if (!file.originalname.match(/\.(jpe?g|png|gif|bmp|svg|web)$/i)) {
+			if (!file.originalname.match(/\.(jpe?g|png|gif|bmp|svg|web|jfif)$/i)) {
 				return cb(new Error("Пожалуйста, загрузите действительный файл изображения"));
 			}
 			cb(null, true);

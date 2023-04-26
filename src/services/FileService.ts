@@ -8,17 +8,11 @@ import path from "path";
 import FileModel, { IFile } from "../models/FileModel.js";
 
 class FileService {
-	public async createFile(
-		files: { [fieldname: string]: Express.Multer.File },
-		author: string,
-		message: string,
-		fileDirName: string
-	) {
+	public async createFile(files: any, author: string, fileDirName: string, message: string | null = null) {
 		const uploadedFilesId: IFile[] = [];
 
 		for (let key in files) {
 			const file = files[key];
-			console.log(file);
 
 			const fileName = file.originalname;
 			const filePath = file.path;
@@ -43,8 +37,8 @@ class FileService {
 		return uploadedFilesId;
 	}
 
-	public async removeFile(message: string, author: string) {
-		const files = await FileModel.find({ message, author }).lean().select("filePath");
+	public async removeFile(author: string, message: string | null = null) {
+		const files = await FileModel.find({ author, message }).lean().select("filePath");
 
 		files.forEach((file) => {
 			fs.unlink(path.resolve(file.filePath), (err) => console.log(err));

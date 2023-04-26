@@ -3,12 +3,13 @@ import jwt from "jsonwebtoken";
 
 // model
 import TokenModel from "../models/TokenModel.js";
+import { IFile } from "../models/FileModel.js";
 
 export type Payload = {
 	_id: string;
 	email: string;
 	fullName: string;
-	avatar: string | null;
+	avatar: IFile | null;
 	avatarColors: {
 		color: string;
 		lighten: string;

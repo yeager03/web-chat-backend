@@ -20,6 +20,9 @@ const userController = new UserController();
 // router
 const router = Router();
 
+// multer
+import upload from "../core/multer.js";
+
 router.post("/signup", signUpValidation, userController.signUp);
 router.post("/signin", signInValidation, userController.signIn);
 router.post("/logout", userController.logout);
@@ -41,5 +44,7 @@ router.get("/friend/request/:id", isAuth, paramsIdValidation, userController.fri
 router.get("/friend/accept/:id", isAuth, paramsIdValidation, userController.acceptRequest);
 router.get("/friend/deny/:id", isAuth, paramsIdValidation, userController.denyRequest);
 router.delete("/friend/remove/:id", isAuth, paramsIdValidation, userController.removeFriend);
+
+router.post("/profile/edit", isAuth, upload("profile/").single("file"), userController.editProfile);
 
 export default router;

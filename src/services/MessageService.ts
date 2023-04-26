@@ -53,6 +53,14 @@ class MessageService {
 					select: "_id email fullName avatar avatarColors lastVisit isOnline",
 				},
 				{
+					path: "author",
+					populate: {
+						path: "avatar",
+						select: "_id fileName url size extension",
+						model: "File",
+					},
+				},
+				{
 					path: "files",
 					select: "_id fileName url size extension",
 				},
@@ -87,21 +95,25 @@ class MessageService {
 		dialogue.lastMessage = message._id;
 
 		const uploadedFiles = files?.length
-			? await fileService.createFile(
-					files as { [fieldname: string]: Express.Multer.File },
-					messageAuthor,
-					message._id,
-					"messages"
-			  )
+			? await fileService.createFile(files, messageAuthor, "messages", message._id)
 			: [];
 
 		message.files = uploadedFiles;
 
 		await message.save();
+
 		await message.populate([
 			{
 				path: "author",
 				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+			{
+				path: "author",
+				populate: {
+					path: "avatar",
+					select: "_id fileName url size extension",
+					model: "File",
+				},
 			},
 			{
 				path: "files",
@@ -154,7 +166,7 @@ class MessageService {
 
 		if (!previousMessage) {
 			await message.deleteOne();
-			message.files.length && (await fileService.removeFile(messageId, authorId));
+			message.files.length && (await fileService.removeFile(authorId, messageId));
 			await dialogue.deleteOne();
 
 			return dialogue.members.forEach((user) => {
@@ -163,11 +175,24 @@ class MessageService {
 			});
 		}
 
-		await previousMessage.populate("author", "_id email fullName avatar avatarColors lastVisit isOnline");
+		await previousMessage.populate([
+			{
+				path: "author",
+				select: "_id email fullName avatar avatarColors lastVisit isOnline",
+			},
+			{
+				path: "author",
+				populate: {
+					path: "avatar",
+					select: "_id fileName url size extension",
+					model: "File",
+				},
+			},
+		]);
 
 		await dialogue.save();
 		await message.deleteOne();
-		message.files.length && (await fileService.removeFile(messageId, authorId));
+		message.files.length && (await fileService.removeFile(authorId, messageId));
 
 		return dialogue.members.forEach((user) => {
 			io.to(user.socket_id).emit("SERVER:MESSAGE_DELETED", message);
@@ -200,16 +225,9 @@ class MessageService {
 			? crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString()
 			: null;
 
-		await fileService.removeFile(messageId, messageAuthorId);
+		await fileService.removeFile(messageAuthorId, messageId);
 
-		message.files = files?.length
-			? await fileService.createFile(
-					files as { [fieldname: string]: Express.Multer.File },
-					messageAuthorId,
-					messageId,
-					"messages"
-			  )
-			: [];
+		message.files = files?.length ? await fileService.createFile(files, messageAuthorId, "messages", messageId) : [];
 
 		message.isEdited = true;
 
@@ -220,12 +238,18 @@ class MessageService {
 				select: "_id email fullName avatar avatarColors lastVisit isOnline",
 			},
 			{
+				path: "author",
+				populate: {
+					path: "avatar",
+					select: "_id fileName url size extension",
+					model: "File",
+				},
+			},
+			{
 				path: "files",
 				select: "_id fileName url size extension",
 			},
 		]);
-
-		console.log(message);
 
 		if (dialogue.lastMessage.toString() === messageId) {
 			return dialogue.members.forEach((user) => {
