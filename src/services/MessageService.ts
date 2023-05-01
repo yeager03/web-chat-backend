@@ -7,261 +7,313 @@ import fileService from "../services/FileService.js";
 
 // types
 import { Server as SocketServer } from "socket.io";
-import { CreateMessage, EditMessage, GetMessages, RemoveMessage } from "../controllers/MessageController.js";
+import {
+  CreateMessage,
+  EditMessage,
+  GetMessages,
+  RemoveMessage,
+} from "../controllers/MessageController.js";
 
 // crypto
 import crypto from "crypto-js";
 
+// validation
+import validator from "validator";
+
 class MessageService {
-	public async getMessages(data: GetMessages, io: SocketServer) {
-		const { dialogueId, userId } = data;
-		const existDialogue = await DialogueModel.findById(dialogueId).lean();
+  public async getMessages(data: GetMessages, io: SocketServer) {
+    const { dialogueId, userId } = data;
+    const existDialogue = await DialogueModel.findById(dialogueId).lean();
 
-		if (!existDialogue) {
-			throw new Error(`Диалог с id:${dialogueId} не найден`);
-		}
+    if (!existDialogue) {
+      throw new Error(`Диалог с id:${dialogueId} не найден`);
+    }
 
-		const notReadData = await MessageModel.find({
-			dialogue: dialogueId,
-			author: { $ne: userId },
-			isRead: false,
-		}).populate("author", "_id socket_id");
+    const notReadData = await MessageModel.find({
+      dialogue: dialogueId,
+      author: { $ne: userId },
+      isRead: false,
+    }).populate("author", "_id socket_id");
 
-		if (notReadData.length) {
-			const interlocutorSocketId = notReadData[0].author.socket_id;
-			const updatedMessagesId = notReadData.map((item) => item._id);
+    if (notReadData.length) {
+      const interlocutorSocketId = notReadData[0].author.socket_id;
+      const updatedMessagesId = notReadData.map((item) => item._id);
 
-			await MessageModel.updateMany(
-				{
-					dialogue: dialogueId,
-					author: { $ne: userId },
-				},
-				{
-					isRead: true,
-				}
-			);
+      await MessageModel.updateMany(
+        {
+          dialogue: dialogueId,
+          author: { $ne: userId },
+        },
+        {
+          isRead: true,
+        }
+      );
 
-			io.to(interlocutorSocketId).emit("SERVER:MESSAGES_READ", updatedMessagesId);
-		}
+      io.to(interlocutorSocketId).emit(
+        "SERVER:MESSAGES_READ",
+        updatedMessagesId
+      );
+    }
 
-		const messages = await MessageModel.find({ dialogue: dialogueId })
-			.lean()
-			.populate([
-				"dialogue",
-				{
-					path: "author",
-					select: "_id email fullName avatar avatarColors lastVisit isOnline",
-				},
-				{
-					path: "author",
-					populate: {
-						path: "avatar",
-						select: "_id fileName url size extension",
-						model: "File",
-					},
-				},
-				{
-					path: "files",
-					select: "_id fileName url size extension",
-				},
-			]);
+    const messages = await MessageModel.find({ dialogue: dialogueId })
+      .lean()
+      .populate([
+        "dialogue",
+        {
+          path: "author",
+          select: "_id email fullName avatar avatarColors lastVisit isOnline",
+        },
+        {
+          path: "author",
+          populate: {
+            path: "avatar",
+            select: "_id fileName url size extension",
+            model: "File",
+          },
+        },
+        {
+          path: "files",
+          select: "_id fileName url size extension",
+        },
+      ]);
 
-		return messages;
-	}
+    return messages;
+  }
 
-	public async create(data: CreateMessage, io: SocketServer | null = null) {
-		const { messageAuthor, messageText, dialogueId, files } = data;
+  public async create(data: CreateMessage, io: SocketServer | null = null) {
+    const { messageAuthor, messageText, dialogueId, files } = data;
 
-		const dialogue = await DialogueModel.findById(dialogueId);
+    const dialogue = await DialogueModel.findById(dialogueId);
 
-		if (!dialogue) {
-			throw new Error(`Диалог с id:${dialogueId} не найден`);
-		}
+    if (!dialogue) {
+      throw new Error(`Диалог с id:${dialogueId} не найден`);
+    }
 
-		if (!messageText && !files?.length) {
-			throw new Error("Сообщение не может быть пустым");
-		}
+    if (!messageText && !files?.length) {
+      throw new Error("Сообщение не может быть пустым");
+    }
 
-		const messageValue = messageText.trim()
-			? crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString()
-			: null;
+    const messageValue = messageText.trim()
+      ? crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString()
+      : null;
 
-		const message = new MessageModel({
-			author: messageAuthor,
-			message: messageValue,
-			dialogue: dialogueId,
-			files: [],
-		});
-		dialogue.lastMessage = message._id;
+    const isReference = messageText.trim()
+      ? validator.default.isURL(messageText)
+      : false;
 
-		const uploadedFiles = files?.length
-			? await fileService.createFile(files, messageAuthor, "messages", message._id)
-			: [];
+    const message = new MessageModel({
+      author: messageAuthor,
+      message: messageValue,
+      dialogue: dialogueId,
+      files: [],
+      isReference,
+    });
+    dialogue.lastMessage = message._id;
 
-		message.files = uploadedFiles;
+    const uploadedFiles = files?.length
+      ? await fileService.createFile(
+          files,
+          messageAuthor,
+          "messages",
+          message._id
+        )
+      : [];
 
-		await message.save();
+    message.files = uploadedFiles;
 
-		await message.populate([
-			{
-				path: "author",
-				select: "_id email fullName avatar avatarColors lastVisit isOnline",
-			},
-			{
-				path: "author",
-				populate: {
-					path: "avatar",
-					select: "_id fileName url size extension",
-					model: "File",
-				},
-			},
-			{
-				path: "files",
-				select: "_id fileName url size extension",
-			},
-		]);
+    await message.save();
 
-		await dialogue.save();
-		await dialogue.populate("members", "socket_id");
+    await message.populate([
+      {
+        path: "author",
+        select: "_id email fullName avatar avatarColors lastVisit isOnline",
+      },
+      {
+        path: "author",
+        populate: {
+          path: "avatar",
+          select: "_id fileName url size extension",
+          model: "File",
+        },
+      },
+      {
+        path: "files",
+        select: "_id fileName url size extension",
+      },
+    ]);
 
-		if (io) {
-			dialogue.members.forEach((user) => {
-				io.to(user.socket_id).emit("SERVER:MESSAGE_CREATED", message);
-				io.to(user.socket_id).emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogueId, message);
-			});
-		}
+    await dialogue.save();
+    await dialogue.populate("members", "socket_id");
 
-		return message;
-	}
+    if (io) {
+      dialogue.members.forEach((user) => {
+        io.to(user.socket_id).emit("SERVER:MESSAGE_CREATED", message);
+        io.to(user.socket_id).emit(
+          "SERVER:DIALOGUE_MESSAGE_UPDATE",
+          dialogueId,
+          message
+        );
+      });
+    }
 
-	public async removeMessage(data: RemoveMessage, io: SocketServer) {
-		const { authorId, messageId } = data;
+    return message;
+  }
 
-		const message = await MessageModel.findById(messageId);
+  public async removeMessage(data: RemoveMessage, io: SocketServer) {
+    const { authorId, messageId } = data;
 
-		if (!message) {
-			throw new Error("Сообщение не найдено");
-		}
+    const message = await MessageModel.findById(messageId);
 
-		if (message.author.toString() !== authorId) {
-			throw new Error("Вы не являетесь автором данного сообщения");
-		}
+    if (!message) {
+      throw new Error("Сообщение не найдено");
+    }
 
-		const dialogue = await DialogueModel.findById(message.dialogue);
+    if (message.author.toString() !== authorId) {
+      throw new Error("Вы не являетесь автором данного сообщения");
+    }
 
-		if (!dialogue) {
-			throw new Error("Диалог не найден");
-		}
+    const dialogue = await DialogueModel.findById(message.dialogue);
 
-		await dialogue.populate("members", "socket_id");
+    if (!dialogue) {
+      throw new Error("Диалог не найден");
+    }
 
-		const previousMessage = await MessageModel.findOne({ _id: { $lt: messageId }, dialogue }).sort({
-			_id: -1,
-		});
-		const lastMessageId = dialogue.lastMessage.toString();
+    await dialogue.populate("members", "socket_id");
 
-		if (lastMessageId === messageId) {
-			dialogue.lastMessage = previousMessage;
-		}
+    const previousMessage = await MessageModel.findOne({
+      _id: { $lt: messageId },
+      dialogue,
+    }).sort({
+      _id: -1,
+    });
+    const lastMessageId = dialogue.lastMessage.toString();
 
-		if (!previousMessage) {
-			await message.deleteOne();
-			message.files.length && (await fileService.removeFile(authorId, messageId));
-			await dialogue.deleteOne();
+    if (lastMessageId === messageId) {
+      dialogue.lastMessage = previousMessage;
+    }
 
-			return dialogue.members.forEach((user) => {
-				io.to(user.socket_id).emit("SERVER:MESSAGE_DELETED", message);
-				io.to(user.socket_id).emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue._id, previousMessage);
-			});
-		}
+    if (!previousMessage) {
+      await message.deleteOne();
+      message.files.length &&
+        (await fileService.removeFile(authorId, messageId));
+      await dialogue.deleteOne();
 
-		await previousMessage.populate([
-			{
-				path: "author",
-				select: "_id email fullName avatar avatarColors lastVisit isOnline",
-			},
-			{
-				path: "author",
-				populate: {
-					path: "avatar",
-					select: "_id fileName url size extension",
-					model: "File",
-				},
-			},
-		]);
+      return dialogue.members.forEach((user) => {
+        io.to(user.socket_id).emit("SERVER:MESSAGE_DELETED", message);
+        io.to(user.socket_id).emit(
+          "SERVER:DIALOGUE_MESSAGE_UPDATE",
+          dialogue._id,
+          previousMessage
+        );
+      });
+    }
 
-		await dialogue.save();
-		await message.deleteOne();
-		message.files.length && (await fileService.removeFile(authorId, messageId));
+    await previousMessage.populate([
+      {
+        path: "author",
+        select: "_id email fullName avatar avatarColors lastVisit isOnline",
+      },
+      {
+        path: "author",
+        populate: {
+          path: "avatar",
+          select: "_id fileName url size extension",
+          model: "File",
+        },
+      },
+    ]);
 
-		return dialogue.members.forEach((user) => {
-			io.to(user.socket_id).emit("SERVER:MESSAGE_DELETED", message);
-			io.to(user.socket_id).emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue._id, previousMessage);
-		});
-	}
+    await dialogue.save();
+    await message.deleteOne();
+    message.files.length && (await fileService.removeFile(authorId, messageId));
 
-	public async editMessage(data: EditMessage, io: SocketServer) {
-		const { messageAuthorId, messageId, messageText, files } = data;
+    return dialogue.members.forEach((user) => {
+      io.to(user.socket_id).emit("SERVER:MESSAGE_DELETED", message);
+      io.to(user.socket_id).emit(
+        "SERVER:DIALOGUE_MESSAGE_UPDATE",
+        dialogue._id,
+        previousMessage
+      );
+    });
+  }
 
-		const message = await MessageModel.findById(messageId);
+  public async editMessage(data: EditMessage, io: SocketServer) {
+    const { messageAuthorId, messageId, messageText, files } = data;
 
-		if (!message) {
-			throw new Error("Сообщение не найдено");
-		}
+    const message = await MessageModel.findById(messageId);
 
-		if (message.author.toString() !== messageAuthorId) {
-			throw new Error("Вы не являетесь автором данного сообщения");
-		}
+    if (!message) {
+      throw new Error("Сообщение не найдено");
+    }
 
-		const dialogue = await DialogueModel.findById(message.dialogue);
+    if (message.author.toString() !== messageAuthorId) {
+      throw new Error("Вы не являетесь автором данного сообщения");
+    }
 
-		if (!dialogue) {
-			throw new Error("Диалог не найден");
-		}
+    const dialogue = await DialogueModel.findById(message.dialogue);
 
-		await dialogue.populate("members", "socket_id");
+    if (!dialogue) {
+      throw new Error("Диалог не найден");
+    }
 
-		message.message = messageText.trim()
-			? crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString()
-			: null;
+    await dialogue.populate("members", "socket_id");
 
-		await fileService.removeFile(messageAuthorId, messageId);
+    message.message = messageText.trim()
+      ? crypto.AES.encrypt(messageText, process.env.CRYPTO_KEY || "").toString()
+      : null;
 
-		message.files = files?.length ? await fileService.createFile(files, messageAuthorId, "messages", messageId) : [];
+    message.isReference = messageText.trim()
+      ? validator.default.isURL(messageText)
+      : false;
 
-		message.isEdited = true;
+    await fileService.removeFile(messageAuthorId, messageId);
 
-		await message.save();
-		await message.populate([
-			{
-				path: "author",
-				select: "_id email fullName avatar avatarColors lastVisit isOnline",
-			},
-			{
-				path: "author",
-				populate: {
-					path: "avatar",
-					select: "_id fileName url size extension",
-					model: "File",
-				},
-			},
-			{
-				path: "files",
-				select: "_id fileName url size extension",
-			},
-		]);
+    message.files = files?.length
+      ? await fileService.createFile(
+          files,
+          messageAuthorId,
+          "messages",
+          messageId
+        )
+      : [];
 
-		if (dialogue.lastMessage.toString() === messageId) {
-			return dialogue.members.forEach((user) => {
-				io.to(user.socket_id).emit("SERVER:MESSAGE_EDITED", message);
-				io.to(user.socket_id).emit("SERVER:DIALOGUE_MESSAGE_UPDATE", dialogue._id, message);
-			});
-		}
+    message.isEdited = true;
 
-		return dialogue.members.forEach((user) => {
-			io.to(user.socket_id).emit("SERVER:MESSAGE_EDITED", message);
-		});
-	}
+    await message.save();
+    await message.populate([
+      {
+        path: "author",
+        select: "_id email fullName avatar avatarColors lastVisit isOnline",
+      },
+      {
+        path: "author",
+        populate: {
+          path: "avatar",
+          select: "_id fileName url size extension",
+          model: "File",
+        },
+      },
+      {
+        path: "files",
+        select: "_id fileName url size extension",
+      },
+    ]);
+
+    if (dialogue.lastMessage.toString() === messageId) {
+      return dialogue.members.forEach((user) => {
+        io.to(user.socket_id).emit("SERVER:MESSAGE_EDITED", message);
+        io.to(user.socket_id).emit(
+          "SERVER:DIALOGUE_MESSAGE_UPDATE",
+          dialogue._id,
+          message
+        );
+      });
+    }
+
+    return dialogue.members.forEach((user) => {
+      io.to(user.socket_id).emit("SERVER:MESSAGE_EDITED", message);
+    });
+  }
 }
 
 export default new MessageService();
