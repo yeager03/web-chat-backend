@@ -35,9 +35,9 @@ config();
 const app: Express = express();
 const server: Server = http.createServer(app);
 const io: SocketServer = new SocketServer(server, {
-	cors: {
-		origin: process.env.CLIENT_URL,
-	},
+  cors: {
+    origin: process.env.CLIENT_URL,
+  },
 });
 
 // port
@@ -52,10 +52,10 @@ app.use(cookieParser());
 
 // cors
 app.use(
-	cors({
-		origin: process.env.CLIENT_URL,
-		credentials: true,
-	})
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
+  })
 );
 
 // static
@@ -67,26 +67,26 @@ app.use("/dialogue", dialogueRoutes);
 app.use("/message", messageRoutes);
 
 const start = async () => {
-	try {
-		database();
-		socket(io);
+  try {
+    database();
+    socket(io);
 
-		app.set("io", io);
+    app.set("io", io);
 
-		if (!fs.existsSync(path.join(__dirname, "uploads"))) {
-			fs.mkdir(path.join(__dirname, "uploads"), (err) => {
-				if (err) {
-					throw new Error(err.message);
-				}
-			});
-		}
+    if (!fs.existsSync(path.join(__dirname, "uploads"))) {
+      fs.mkdir(path.join(__dirname, "uploads"), (err) => {
+        if (err) {
+          throw new Error(err.message);
+        }
+      });
+    }
 
-		server.listen(PORT, () => {
-			console.log(`⚡️[server]: Server is running at http://localhost:${PORT}`);
-		});
-	} catch (error) {
-		console.log(error);
-	}
+    server.listen(PORT, () => {
+      console.log(`⚡️[server]: Server is running at http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.log(error);
+  }
 };
 
 start();

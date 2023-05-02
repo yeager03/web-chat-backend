@@ -8,33 +8,38 @@ import path from "path";
 import fs from "fs";
 
 const multer = (fileDirName: string) => {
-	const storage = fileMulter.diskStorage({
-		destination: (req, file, cb) => {
-			const dirName = path.join(path.resolve(), `uploads/${fileDirName}`);
+  const storage = fileMulter.diskStorage({
+    destination: (req, file, cb) => {
+      const dirName = path.join(path.resolve(), `uploads/${fileDirName}`);
 
-			if (!fs.existsSync(dirName)) {
-				fs.mkdir(dirName, (err) => console.log("err", err));
-			}
+      if (!fs.existsSync(dirName)) {
+        fs.mkdir(dirName, { recursive: true }, (err) => {
+          if (err) throw new Error(err.message);
+          cb(null, dirName);
+        });
+      } else {
+        cb(null, dirName);
+      }
+    },
+    filename: (req, file, cb) => {
+      const fileName = file.originalname.split(".").slice(0, -1).join(".");
+      const ext = file.mimetype.split("/")[1];
+      cb(null, `${fileName}-${Date.now()}.${ext}`);
+    },
+  });
 
-			cb(null, dirName);
-		},
-		filename: (req, file, cb) => {
-			const fileName = file.originalname.split(".").slice(0, -1).join(".");
-			const ext = file.mimetype.split("/")[1];
-			cb(null, `${fileName}-${Date.now()}.${ext}`);
-		},
-	});
-
-	return fileMulter({
-		storage,
-		limits: { fileSize: 5000000 },
-		fileFilter(req, file, cb) {
-			if (!file.originalname.match(/\.(jpe?g|png|gif|bmp|svg|web|jfif)$/i)) {
-				return cb(new Error("Пожалуйста, загрузите действительный файл изображения"));
-			}
-			cb(null, true);
-		},
-	});
+  return fileMulter({
+    storage,
+    limits: { fileSize: 5000000 },
+    fileFilter(req, file, cb) {
+      if (!file.originalname.match(/\.(jpe?g|png|gif|bmp|svg|web|jfif)$/i)) {
+        return cb(
+          new Error("Пожалуйста, загрузите действительный файл изображения")
+        );
+      }
+      cb(null, true);
+    },
+  });
 };
 
 export default multer;

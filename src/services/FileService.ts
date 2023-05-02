@@ -8,44 +8,72 @@ import path from "path";
 import FileModel, { IFile } from "../models/FileModel.js";
 
 class FileService {
-	public async createFile(files: any, author: string, fileDirName: string, message: string | null = null) {
-		const uploadedFilesId: IFile[] = [];
+  public async createFile(
+    files: any,
+    author: string,
+    fileDirName: string,
+    messageId: string | null = null,
+    dialogueId: string | null = null
+  ) {
+    const uploadedFilesId: IFile[] = [];
 
-		for (let key in files) {
-			const file = files[key];
+    for (let key in files) {
+      const file = files[key];
 
-			const fileName = file.originalname;
-			const filePath = file.path;
-			const size = file.size;
-			const url = `${process.env.API_URL}/uploads/${fileDirName}/${file.filename}`;
-			const extension = file.mimetype.split("/")[1];
+      const oldPath = file.path;
 
-			const uploadedFile = new FileModel({
-				fileName,
-				filePath,
-				size,
-				url,
-				extension,
-				author,
-				message,
-			});
+      const newPathDir = path.join(
+        path.resolve(),
+        `uploads/${fileDirName}/${dialogueId}/`
+      );
+      const newPath = `${newPathDir}/${file.filename}`;
 
-			await uploadedFile.save();
-			uploadedFilesId.push(uploadedFile._id);
-		}
+      if (!fs.existsSync(newPathDir)) {
+        fs.mkdir(newPathDir, { recursive: true }, (err) => {
+          if (err) throw new Error(err.message);
+        });
+      }
 
-		return uploadedFilesId;
-	}
+      fs.rename(oldPath, newPath, async (err) => {
+        if (err) throw new Error(err.message);
+      });
 
-	public async removeFile(author: string, message: string | null = null) {
-		const files = await FileModel.find({ author, message }).lean().select("filePath");
+      const fileName = file.originalname;
+      const filePath = newPath;
+      const size = file.size;
+      const url = `${process.env.API_URL}/uploads/${fileDirName}/${dialogueId}/${file.filename}`;
+      const type = file.mimetype.split("/")[0];
+      const extension = file.mimetype.split("/")[1];
 
-		files.forEach((file) => {
-			fs.unlink(path.resolve(file.filePath), (err) => console.log(err));
-		});
+      const uploadedFile = new FileModel({
+        fileName,
+        filePath,
+        size,
+        url,
+        type,
+        extension,
+        author,
+        message: messageId,
+      });
 
-		await FileModel.deleteMany({ message, author });
-	}
+      await uploadedFile.save();
+      uploadedFilesId.push(uploadedFile._id);
+    }
+
+    return uploadedFilesId;
+  }
+
+  public async removeFile(author: string, message: string | null = null) {
+    const files = await FileModel.find({ author, message })
+      .lean()
+      .select("filePath");
+
+    files.forEach((file) => {
+      fs.unlink(path.resolve(file.filePath), (err) => console.log(err));
+    });
+
+    await FileModel.deleteMany({ message, author });
+  }
 }
 
 export default new FileService();

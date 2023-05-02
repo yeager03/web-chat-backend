@@ -115,7 +115,8 @@ class MessageService {
           files,
           messageAuthor,
           "messages",
-          message._id
+          message._id,
+          dialogue._id
         )
       : [];
 
@@ -273,7 +274,8 @@ class MessageService {
           files,
           messageAuthorId,
           "messages",
-          messageId
+          messageId,
+          dialogue._id
         )
       : [];
 
