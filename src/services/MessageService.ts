@@ -62,9 +62,6 @@ class MessageService {
         {
           path: "author",
           select: "_id email fullName avatar avatarColors lastVisit isOnline",
-        },
-        {
-          path: "author",
           populate: {
             path: "avatar",
             select: "_id fileName url size extension",
@@ -73,7 +70,7 @@ class MessageService {
         },
         {
           path: "files",
-          select: "_id fileName url size extension",
+          select: "_id fileName url size extension type",
         },
       ]);
 
@@ -128,9 +125,6 @@ class MessageService {
       {
         path: "author",
         select: "_id email fullName avatar avatarColors lastVisit isOnline",
-      },
-      {
-        path: "author",
         populate: {
           path: "avatar",
           select: "_id fileName url size extension",
@@ -139,12 +133,14 @@ class MessageService {
       },
       {
         path: "files",
-        select: "_id fileName url size extension",
+        select: "_id fileName url size extension type",
       },
     ]);
 
     await dialogue.save();
     await dialogue.populate("members", "socket_id");
+
+    console.log(message);
 
     if (io) {
       dialogue.members.forEach((user) => {
@@ -213,14 +209,15 @@ class MessageService {
       {
         path: "author",
         select: "_id email fullName avatar avatarColors lastVisit isOnline",
-      },
-      {
-        path: "author",
         populate: {
           path: "avatar",
           select: "_id fileName url size extension",
           model: "File",
         },
+      },
+      {
+        path: "files",
+        select: "_id fileName url size extension type",
       },
     ]);
 
@@ -286,9 +283,6 @@ class MessageService {
       {
         path: "author",
         select: "_id email fullName avatar avatarColors lastVisit isOnline",
-      },
-      {
-        path: "author",
         populate: {
           path: "avatar",
           select: "_id fileName url size extension",
@@ -297,7 +291,7 @@ class MessageService {
       },
       {
         path: "files",
-        select: "_id fileName url size extension",
+        select: "_id fileName url size extension type",
       },
     ]);
 

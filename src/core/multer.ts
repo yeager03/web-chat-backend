@@ -7,6 +7,12 @@ import path from "path";
 // fs
 import fs from "fs";
 
+const validationRegExps = {
+  image: /image\/(png|jpg|jpeg|svg|web|gif|jfif)/gm,
+  audio:
+    /audio\/(mp3|mpeg|wav|wma|aac|flac|ogg|m4a|aiff|alac|amr|ape|au|mpc|tta|wv|opus)/gm,
+};
+
 const multer = (fileDirName: string) => {
   const storage = fileMulter.diskStorage({
     destination: (req, file, cb) => {
@@ -30,14 +36,30 @@ const multer = (fileDirName: string) => {
 
   return fileMulter({
     storage,
-    limits: { fileSize: 5000000 },
+    limits: { fileSize: 10000000 },
     fileFilter(req, file, cb) {
-      if (!file.originalname.match(/\.(jpe?g|png|gif|bmp|svg|web|jfif)$/i)) {
-        return cb(
-          new Error("Пожалуйста, загрузите действительный файл изображения")
-        );
+      const fileType = file.mimetype.split("/")[0];
+
+      switch (fileType) {
+        case "image":
+          if (!file.mimetype.match(validationRegExps.image)) {
+            return cb(
+              new Error(
+                "Пожалуйста, загрузите действительный файл с изображением!"
+              )
+            );
+          }
+          cb(null, true);
+          break;
+        case "audio":
+          if (!file.mimetype.match(validationRegExps.audio)) {
+            return cb(
+              new Error("Пожалуйста, загрузите действительный файл с аудио!")
+            );
+          }
+          cb(null, true);
+          break;
       }
-      cb(null, true);
     },
   });
 };
