@@ -10,7 +10,7 @@ import fs from "fs";
 const validationRegExps = {
   image: /image\/(png|jpg|jpeg|svg|web|gif|jfif)/gm,
   audio:
-    /audio\/(mp3|mpeg|wav|wma|aac|flac|ogg|m4a|aiff|alac|amr|ape|au|mpc|tta|wv|opus)/gm,
+    /audio\/(mp3|mpeg|wav|wma|aac|flac|ogg|m4a|aiff|alac|amr|ape|au|mpc|tta|wv|opus|webm)/gm,
 };
 
 const multer = (fileDirName: string) => {
