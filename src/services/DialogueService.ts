@@ -134,6 +134,8 @@ class DialogueService {
           "SERVER:DIALOGUE_CREATED",
           new_dialogue
         );
+
+        io.to(author.socket_id).emit("SERVER:JOIN_TO_ROOM", new_dialogue._id);
       }
 
       return new_dialogue;
@@ -161,6 +163,11 @@ class DialogueService {
               model: "User",
               select:
                 "_id email fullName avatar avatarColors lastVisit isOnline",
+            },
+            {
+              path: "files",
+              model: "File",
+              select: "type",
             },
           ],
         },

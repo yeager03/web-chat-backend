@@ -20,439 +20,471 @@ import getRandomColors from "../utils/generateRandomColors.js";
 
 // types
 import { Server as SocketServer } from "socket.io";
-import { SignUp, SignIn, FriendRequest, FriendRemove, EditProfile } from "../controllers/UserController.js";
+import {
+  SignUp,
+  SignIn,
+  FriendRequest,
+  FriendRemove,
+  EditProfile,
+} from "../controllers/UserController.js";
 
 class UserService {
-	public async signUp(data: SignUp) {
-		const { email, fullName, password } = data;
+  public async signUp(data: SignUp) {
+    const { email, fullName, password } = data;
 
-		const candidate = await UserModel.findOne({ email }).lean();
+    const candidate = await UserModel.findOne({ email }).lean();
 
-		if (candidate) {
-			throw new Error(`Пользователь с ${email} уже существует`);
-		}
+    if (candidate) {
+      throw new Error(`Пользователь с ${email} уже существует`);
+    }
 
-		const hashPassword = await bcrypt.hash(password, 10);
+    const hashPassword = await bcrypt.hash(password, 10);
 
-		const activationId = uuidv4();
-		const activationIdExpiries = Date.now() + 10 * 60 * 1000;
+    const activationId = uuidv4();
+    const activationIdExpiries = Date.now() + 10 * 60 * 1000;
 
-		const avatarColors = getRandomColors();
+    const avatarColors = getRandomColors();
 
-		const user = new UserModel({
-			email,
-			fullName,
-			password: hashPassword,
-			activationId,
-			activationIdExpiries,
-			avatarColors,
-		});
+    const user = new UserModel({
+      email,
+      fullName,
+      password: hashPassword,
+      activationId,
+      activationIdExpiries,
+      avatarColors,
+    });
 
-		await user.save();
-		await mailService.sendActivationMail(
-			email,
-			fullName.split(" ")[0],
-			`${process.env.CLIENT_URL}/auth/activate/${activationId}`
-		);
-	}
+    await user.save();
+    await mailService.sendActivationMail(
+      email,
+      fullName.split(" ")[0],
+      `${process.env.CLIENT_URL}/auth/activate/${activationId}`
+    );
+  }
 
-	public async signIn(data: SignIn) {
-		const { email, password } = data;
+  public async signIn(data: SignIn) {
+    const { email, password } = data;
 
-		const candidate = await UserModel.findOne({ email });
+    const candidate = await UserModel.findOne({ email });
 
-		if (!candidate) {
-			throw new Error("Пользователь не найден");
-		}
+    if (!candidate) {
+      throw new Error("Пользователь не найден");
+    }
+
+    const isPassEquals = await bcrypt.compare(password, candidate.password);
 
-		const isPassEquals = await bcrypt.compare(password, candidate.password);
+    if (!isPassEquals) {
+      throw new Error("Неверный пароль, попробуйте снова");
+    }
 
-		if (!isPassEquals) {
-			throw new Error("Неверный пароль, попробуйте снова");
-		}
+    if (!candidate["isActivated"]) {
+      throw new Error("Пожалуйста, подтвердите свою почту");
+    }
 
-		if (!candidate["isActivated"]) {
-			throw new Error("Пожалуйста, подтвердите свою почту");
-		}
+    if (candidate.avatar) {
+      await candidate.populate("avatar", "_id fileName url size extension");
+    }
 
-		if (candidate.avatar) {
-			await candidate.populate("avatar", "_id fileName url size extension");
-		}
+    const userDto = new UserDto(candidate);
+    const tokens = tokenService.generateTokens({ ...userDto });
 
-		const userDto = new UserDto(candidate);
-		const tokens = tokenService.generateTokens({ ...userDto });
+    await tokenService.saveToken(userDto._id, tokens.refreshToken);
 
-		await tokenService.saveToken(userDto._id, tokens.refreshToken);
+    return {
+      ...tokens,
+      user: userDto,
+    };
+  }
 
-		return {
-			...tokens,
-			user: userDto,
-		};
-	}
+  public async logout(refreshToken: string) {
+    const tokenFromDatabase = await tokenService.findToken(refreshToken);
 
-	public async logout(refreshToken: string) {
-		const tokenFromDatabase = await tokenService.findToken(refreshToken);
+    if (!tokenFromDatabase) {
+      throw new Error("Токен не был найден");
+    }
 
-		if (!tokenFromDatabase) {
-			throw new Error("Токен не был найден");
-		}
+    return tokenService.removeToken(refreshToken);
+  }
 
-		return tokenService.removeToken(refreshToken);
-	}
+  public async refreshAccount(refreshToken: string) {
+    if (!refreshToken) {
+      throw new Error("Пользователь не авторизован");
+    }
 
-	public async refreshAccount(refreshToken: string) {
-		if (!refreshToken) {
-			throw new Error("Пользователь не авторизован");
-		}
+    const userData = tokenService.validateRefreshToken(refreshToken);
+    const tokenFromDatabase = await tokenService.findToken(refreshToken);
 
-		const userData = tokenService.validateRefreshToken(refreshToken);
-		const tokenFromDatabase = await tokenService.findToken(refreshToken);
+    if (!userData || !tokenFromDatabase) {
+      await tokenService.removeToken(refreshToken);
+      throw new Error("Пользователь не авторизован");
+    }
 
-		if (!userData || !tokenFromDatabase) {
-			await tokenService.removeToken(refreshToken);
-			throw new Error("Пользователь не авторизован");
-		}
+    const user = await UserModel.findById(userData._id);
 
-		const user = await UserModel.findById(userData._id);
+    if (!user) {
+      await tokenService.removeToken(refreshToken);
+      throw new Error("Пользователь не найден");
+    }
 
-		if (!user) {
-			await tokenService.removeToken(refreshToken);
-			throw new Error("Пользователь не найден");
-		}
+    if (user.avatar) {
+      await user.populate("avatar", "_id fileName url size extension");
+    }
 
-		if (user.avatar) {
-			await user.populate("avatar", "_id fileName url size extension");
-		}
-
-		const userDto = new UserDto(user);
-		const tokens = tokenService.generateTokens({ ...userDto });
-
-		await tokenService.saveToken(userDto._id, tokens.refreshToken);
-
-		return {
-			...tokens,
-			user: userDto,
-		};
-	}
-
-	public async findUserByEmail(email: string) {
-		const candidate = await UserModel.findOne({ email }).lean().select("_id email fullName");
-
-		if (!candidate) {
-			throw new Error("Пользователь с таким email не найден");
-		}
-
-		return candidate;
-	}
-
-	public async activateAccount(activationId: string) {
-		const user = await UserModel.findOne({ activationId });
-
-		if (!user) {
-			throw {
-				status: "error",
-				message: "Некорректная ссылка",
-			};
-		}
-
-		if (user.activationIdExpiries && +new Date() > user.activationIdExpiries) {
-			throw {
-				status: "expired",
-				message: "Это ссылка больше не действительна",
-				email: user.email,
-			};
-		}
-
-		user.isActivated = true;
-
-		user.activationId = null;
-		user.activationIdExpiries = null;
-
-		await user.save();
-	}
-
-	public async againSendActivateMail(email: string) {
-		const user = await UserModel.findOne({ email });
-
-		if (!user) {
-			throw new Error("Пользователь с таким email не найден");
-		}
-
-		const activationId = uuidv4();
-		const activationIdExpiries = Date.now() + 10 * 60 * 1000;
-
-		user.activationId = activationId;
-		user.activationIdExpiries = activationIdExpiries;
-
-		await user.save();
-		await mailService.sendActivationMail(
-			email,
-			user.fullName.split(" ")[0],
-			`${process.env.CLIENT_URL}/auth/activate/${activationId}`
-		);
-	}
-
-	public async resetPassword(email: string) {
-		const user = await UserModel.findOne({ email });
-
-		if (!user) {
-			throw new Error("Пользователь с таким email не найден");
-		}
-
-		const passwordResetId = uuidv4();
-		const passwordResetIdExpiries = Date.now() + 10 * 60 * 1000;
-
-		user.passwordResetId = passwordResetId;
-		user.passwordResetIdExpiries = passwordResetIdExpiries;
-
-		await user.save();
-		await mailService.resetPasswordMail(
-			email,
-			user.fullName.split(" ")[0],
-			`${process.env.CLIENT_URL}/auth/password/new/${passwordResetId}`
-		);
-	}
-
-	public async newPassword(method: string, passwordResetId: string, password: string = "") {
-		const user = await UserModel.findOne({ passwordResetId });
-
-		if (!user) {
-			throw {
-				status: "error",
-				message: "Некорректная ссылка",
-			};
-		}
-
-		if (user.passwordResetIdExpiries && +new Date() > user.passwordResetIdExpiries) {
-			throw {
-				status: "expired",
-				message: "Это ссылка больше не действительна",
-			};
-		}
-
-		if (method === "POST") {
-			user.password = await bcrypt.hash(password, 10);
-
-			user.passwordResetId = null;
-			user.passwordResetIdExpiries = null;
-
-			await user.save();
-		}
-	}
-
-	public async getFriends(userId: string) {
-		const user = await UserModel.findById(userId).populate([
-			{
-				path: "friends",
-				select: "_id email fullName avatar avatarColors lastVisit isOnline",
-			},
-			{
-				path: "friends",
-				populate: {
-					path: "avatar",
-					select: "_id fileName url size extension",
-					model: "File",
-				},
-			},
-		]);
-
-		if (!user) {
-			throw new Error("Пользователь не найден");
-		}
-
-		return user.friends;
-	}
-
-	public async getRequests(userId: string) {
-		const user = await UserModel.findById(userId).populate([
-			{
-				path: "requests",
-				select: "_id email fullName avatar avatarColors lastVisit isOnline",
-			},
-			{
-				path: "requests",
-				populate: {
-					path: "avatar",
-					select: "_id fileName url size extension",
-					model: "File",
-				},
-			},
-		]);
-
-		if (!user) {
-			throw new Error("Пользователь не найден");
-		}
-		return user.requests;
-	}
-
-	public async friendRequest(data: FriendRequest, io: SocketServer) {
-		const { senderId, recipientId } = data;
-
-		if (senderId === recipientId) {
-			throw new Error("Вы не можете отправить заявку самому себе");
-		}
-
-		const sender = await UserModel.findOne({ _id: senderId });
-		const recipient = await UserModel.findOne({ _id: recipientId });
-
-		if (!sender) {
-			throw new Error("Отправитель не найден");
-		}
-
-		if (!recipient) {
-			throw new Error("Получатель не найден");
-		}
-
-		if (recipient.requests.includes(senderId)) {
-			throw new Error("Вы уже отправляли заявку этому человеку, дождитесь ее принятия");
-		}
-
-		if (recipient.friends.includes(senderId)) {
-			throw new Error("Вы уже являетесь друзьями");
-		}
-
-		await recipient.updateOne({ $push: { requests: sender } });
-
-		if (sender.avatar) {
-			await sender.populate("avatar", "_id fileName url size extension");
-		}
-
-		if (recipient.socket_id) {
-			io.to(recipient.socket_id).emit("SERVER:NEW_FRIEND_REQUEST", recipientId, { ...new UserDto(sender) });
-		}
-	}
-
-	public async acceptRequest(data: FriendRequest, io: SocketServer) {
-		const { senderId, recipientId } = data;
-
-		if (senderId === recipientId) {
-			throw new Error("Вы не можете добавить самого себя в друзья");
-		}
-
-		const recipient = await UserModel.findOne({ _id: recipientId });
-		const sender = await UserModel.findOne({ _id: senderId });
-
-		if (!sender) {
-			throw new Error("Отправитель не найден");
-		}
-
-		if (!recipient) {
-			throw new Error("Получатель не найден");
-		}
-
-		if (recipient.friends.includes(senderId)) {
-			throw new Error("Вы уже являетесь друзьями");
-		}
-
-		await recipient.updateOne({ $pull: { requests: senderId } }).updateOne({ $push: { friends: senderId } });
-		await sender.updateOne({ $push: { friends: recipientId } });
-
-		if (recipient.avatar) {
-			await recipient.populate("avatar", "_id fileName url size extension");
-		}
-
-		if (sender.socket_id) {
-			console.log("sender fullName:", sender.fullName);
-			console.log("sender socket_id:", sender.socket_id);
-			console.log("sender id:", senderId);
-			io.to(sender.socket_id).emit("SERVER:NEW_FRIEND_ACCEPT", senderId, { ...new UserDto(recipient) });
-		}
-	}
-
-	public async denyRequest(data: FriendRequest) {
-		const { senderId, recipientId } = data;
-
-		const recipient = await UserModel.findOne({ _id: recipientId });
-		const sender = await UserModel.findOne({ _id: senderId });
-
-		if (!sender) {
-			throw new Error("Отправитель не найден");
-		}
-
-		if (!recipient) {
-			throw new Error("Получатель не найден");
-		}
-
-		if (!recipient.requests.includes(senderId)) {
-			throw new Error("Отправитель больше не подписан на вас");
-		}
-
-		await recipient.updateOne({ $pull: { requests: senderId } });
-
-		return sender.fullName.split(" ")[0];
-	}
-
-	public async removeFriend(data: FriendRemove, io: SocketServer) {
-		const { authorId, friendId } = data;
-
-		const author = await UserModel.findOne({ _id: authorId });
-		const friend = await UserModel.findOne({ _id: friendId });
-
-		const dialogue = await DialogueModel.findOne({ members: { $all: [authorId, friendId] } });
-
-		if (!author) {
-			throw new Error("Автор не найден");
-		}
-
-		if (!friend) {
-			throw new Error("Друг не найден");
-		}
-
-		if (!author.friends.includes(friendId) && !friend.friends.includes(authorId)) {
-			throw new Error("Вы не являетесь друзьями");
-		}
-
-		await author.updateOne({ $pull: { friends: friendId } });
-		await friend.updateOne({ $pull: { friends: authorId } });
-
-		if (dialogue) {
-			await dialogue.deleteOne();
-			const messages = await MessageModel.find({ dialogue: dialogue._id });
-
-			messages.forEach(async (message) => {
-				if (message.files.length) {
-					await fileService.removeFile(authorId, message?._id);
-					await fileService.removeFile(friendId, message?._id);
-				}
-			});
-
-			await MessageModel.deleteMany({ dialogue: dialogue._id });
-		}
-
-		if (author.socket_id && friend.socket_id) {
-			io.to(author.socket_id).emit("SERVER:FRIEND_REMOVE", [authorId, friendId], dialogue);
-			io.to(friend.socket_id).emit("SERVER:FRIEND_REMOVE", [authorId, friendId], dialogue);
-		}
-
-		return friend.fullName.split(" ")[0];
-	}
-
-	public async editProfile(data: EditProfile) {
-		const { authorId, fullName, about_me, file } = data;
-
-		const user = await UserModel.findById(authorId);
-
-		if (!user) {
-			throw new Error("Пользователь не найден");
-		}
-
-		if (user.avatar) {
-			await fileService.removeFile(authorId);
-		}
-
-		if (file) {
-			user.avatar = await fileService.createFile([file], authorId, "profile");
-		}
-
-		user.fullName = fullName;
-		user.about_me = about_me.trim() ? about_me : null;
-
-		await user.save();
-		await user.populate("avatar", "_id fileName url size extension");
-
-		const userDto = new UserDto(user);
-		return { ...userDto };
-	}
+    const userDto = new UserDto(user);
+    const tokens = tokenService.generateTokens({ ...userDto });
+
+    await tokenService.saveToken(userDto._id, tokens.refreshToken);
+
+    return {
+      ...tokens,
+      user: userDto,
+    };
+  }
+
+  public async findUserByEmail(email: string) {
+    const candidate = await UserModel.findOne({ email })
+      .lean()
+      .select("_id email fullName");
+
+    if (!candidate) {
+      throw new Error("Пользователь с таким email не найден");
+    }
+
+    return candidate;
+  }
+
+  public async activateAccount(activationId: string) {
+    const user = await UserModel.findOne({ activationId });
+
+    if (!user) {
+      throw {
+        status: "error",
+        message: "Некорректная ссылка",
+      };
+    }
+
+    if (user.activationIdExpiries && +new Date() > user.activationIdExpiries) {
+      throw {
+        status: "expired",
+        message: "Это ссылка больше не действительна",
+        email: user.email,
+      };
+    }
+
+    user.isActivated = true;
+
+    user.activationId = null;
+    user.activationIdExpiries = null;
+
+    await user.save();
+  }
+
+  public async againSendActivateMail(email: string) {
+    const user = await UserModel.findOne({ email });
+
+    if (!user) {
+      throw new Error("Пользователь с таким email не найден");
+    }
+
+    const activationId = uuidv4();
+    const activationIdExpiries = Date.now() + 10 * 60 * 1000;
+
+    user.activationId = activationId;
+    user.activationIdExpiries = activationIdExpiries;
+
+    await user.save();
+    await mailService.sendActivationMail(
+      email,
+      user.fullName.split(" ")[0],
+      `${process.env.CLIENT_URL}/auth/activate/${activationId}`
+    );
+  }
+
+  public async resetPassword(email: string) {
+    const user = await UserModel.findOne({ email });
+
+    if (!user) {
+      throw new Error("Пользователь с таким email не найден");
+    }
+
+    const passwordResetId = uuidv4();
+    const passwordResetIdExpiries = Date.now() + 10 * 60 * 1000;
+
+    user.passwordResetId = passwordResetId;
+    user.passwordResetIdExpiries = passwordResetIdExpiries;
+
+    await user.save();
+    await mailService.resetPasswordMail(
+      email,
+      user.fullName.split(" ")[0],
+      `${process.env.CLIENT_URL}/auth/password/new/${passwordResetId}`
+    );
+  }
+
+  public async newPassword(
+    method: string,
+    passwordResetId: string,
+    password: string = ""
+  ) {
+    const user = await UserModel.findOne({ passwordResetId });
+
+    if (!user) {
+      throw {
+        status: "error",
+        message: "Некорректная ссылка",
+      };
+    }
+
+    if (
+      user.passwordResetIdExpiries &&
+      +new Date() > user.passwordResetIdExpiries
+    ) {
+      throw {
+        status: "expired",
+        message: "Это ссылка больше не действительна",
+      };
+    }
+
+    if (method === "POST") {
+      user.password = await bcrypt.hash(password, 10);
+
+      user.passwordResetId = null;
+      user.passwordResetIdExpiries = null;
+
+      await user.save();
+    }
+  }
+
+  public async getFriends(userId: string) {
+    const user = await UserModel.findById(userId).populate([
+      {
+        path: "friends",
+        select: "_id email fullName avatar avatarColors lastVisit isOnline",
+        populate: {
+          path: "avatar",
+          select: "_id fileName url size extension",
+          model: "File",
+        },
+      },
+    ]);
+
+    if (!user) {
+      throw new Error("Пользователь не найден");
+    }
+
+    return user.friends;
+  }
+
+  public async getRequests(userId: string) {
+    const user = await UserModel.findById(userId).populate([
+      {
+        path: "requests",
+        select: "_id email fullName avatar avatarColors lastVisit isOnline",
+        populate: {
+          path: "avatar",
+          select: "_id fileName url size extension",
+          model: "File",
+        },
+      },
+    ]);
+
+    if (!user) {
+      throw new Error("Пользователь не найден");
+    }
+    return user.requests;
+  }
+
+  public async friendRequest(data: FriendRequest, io: SocketServer) {
+    const { senderId, recipientId } = data;
+
+    if (senderId === recipientId) {
+      throw new Error("Вы не можете отправить заявку самому себе");
+    }
+
+    const sender = await UserModel.findOne({ _id: senderId });
+    const recipient = await UserModel.findOne({ _id: recipientId });
+
+    if (!sender) {
+      throw new Error("Отправитель не найден");
+    }
+
+    if (!recipient) {
+      throw new Error("Получатель не найден");
+    }
+
+    if (recipient.requests.includes(senderId)) {
+      throw new Error(
+        "Вы уже отправляли заявку этому человеку, дождитесь ее принятия"
+      );
+    }
+
+    if (recipient.friends.includes(senderId)) {
+      throw new Error("Вы уже являетесь друзьями");
+    }
+
+    await recipient.updateOne({ $push: { requests: sender } });
+
+    if (sender.avatar) {
+      await sender.populate("avatar", "_id fileName url size extension");
+    }
+
+    if (recipient.socket_id) {
+      io.to(recipient.socket_id).emit(
+        "SERVER:NEW_FRIEND_REQUEST",
+        recipientId,
+        { ...new UserDto(sender) }
+      );
+    }
+  }
+
+  public async acceptRequest(data: FriendRequest, io: SocketServer) {
+    const { senderId, recipientId } = data;
+
+    if (senderId === recipientId) {
+      throw new Error("Вы не можете добавить самого себя в друзья");
+    }
+
+    const recipient = await UserModel.findOne({ _id: recipientId });
+    const sender = await UserModel.findOne({ _id: senderId });
+
+    if (!sender) {
+      throw new Error("Отправитель не найден");
+    }
+
+    if (!recipient) {
+      throw new Error("Получатель не найден");
+    }
+
+    if (recipient.friends.includes(senderId)) {
+      throw new Error("Вы уже являетесь друзьями");
+    }
+
+    await recipient
+      .updateOne({ $pull: { requests: senderId } })
+      .updateOne({ $push: { friends: senderId } });
+    await sender.updateOne({ $push: { friends: recipientId } });
+
+    if (recipient.avatar) {
+      await recipient.populate("avatar", "_id fileName url size extension");
+    }
+
+    if (sender.socket_id) {
+      console.log("sender fullName:", sender.fullName);
+      console.log("sender socket_id:", sender.socket_id);
+      console.log("sender id:", senderId);
+      io.to(sender.socket_id).emit("SERVER:NEW_FRIEND_ACCEPT", senderId, {
+        ...new UserDto(recipient),
+      });
+    }
+  }
+
+  public async denyRequest(data: FriendRequest) {
+    const { senderId, recipientId } = data;
+
+    const recipient = await UserModel.findOne({ _id: recipientId });
+    const sender = await UserModel.findOne({ _id: senderId });
+
+    if (!sender) {
+      throw new Error("Отправитель не найден");
+    }
+
+    if (!recipient) {
+      throw new Error("Получатель не найден");
+    }
+
+    if (!recipient.requests.includes(senderId)) {
+      throw new Error("Отправитель больше не подписан на вас");
+    }
+
+    await recipient.updateOne({ $pull: { requests: senderId } });
+
+    return sender.fullName.split(" ")[0];
+  }
+
+  public async removeFriend(data: FriendRemove, io: SocketServer) {
+    const { authorId, friendId } = data;
+
+    const author = await UserModel.findOne({ _id: authorId });
+    const friend = await UserModel.findOne({ _id: friendId });
+
+    const dialogue = await DialogueModel.findOne({
+      members: { $all: [authorId, friendId] },
+    });
+
+    if (!author) {
+      throw new Error("Автор не найден");
+    }
+
+    if (!friend) {
+      throw new Error("Друг не найден");
+    }
+
+    if (
+      !author.friends.includes(friendId) &&
+      !friend.friends.includes(authorId)
+    ) {
+      throw new Error("Вы не являетесь друзьями");
+    }
+
+    await author.updateOne({ $pull: { friends: friendId } });
+    await friend.updateOne({ $pull: { friends: authorId } });
+
+    if (dialogue) {
+      await dialogue.deleteOne();
+      const messages = await MessageModel.find({ dialogue: dialogue._id });
+
+      messages.forEach(async (message) => {
+        if (message.files.length) {
+          await fileService.removeFile(authorId, message?._id);
+          await fileService.removeFile(friendId, message?._id);
+        }
+      });
+
+      await MessageModel.deleteMany({ dialogue: dialogue._id });
+    }
+
+    if (author.socket_id && friend.socket_id) {
+      io.to(author.socket_id).emit(
+        "SERVER:FRIEND_REMOVE",
+        [authorId, friendId],
+        dialogue
+      );
+      io.to(friend.socket_id).emit(
+        "SERVER:FRIEND_REMOVE",
+        [authorId, friendId],
+        dialogue
+      );
+    }
+
+    return friend.fullName.split(" ")[0];
+  }
+
+  public async editProfile(data: EditProfile) {
+    const { authorId, fullName, about_me, file } = data;
+
+    const user = await UserModel.findById(authorId);
+
+    if (!user) {
+      throw new Error("Пользователь не найден");
+    }
+
+    if (user.avatar) {
+      await fileService.removeFile(authorId);
+    }
+
+    if (file) {
+      user.avatar = await fileService.createFile([file], authorId, "profile");
+    }
+
+    user.fullName = fullName;
+    user.about_me = about_me.trim() ? about_me : null;
+
+    await user.save();
+    await user.populate("avatar", "_id fileName url size extension");
+
+    const userDto = new UserDto(user);
+    return { ...userDto };
+  }
 }
 
 export default new UserService();

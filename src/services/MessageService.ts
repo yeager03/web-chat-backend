@@ -1,6 +1,7 @@
 // model
 import MessageModel from "../models/MessageModel.js";
 import DialogueModel from "../models/DialogueModel.js";
+import UserModel from "../models/UserModel.js";
 
 // service
 import fileService from "../services/FileService.js";
@@ -33,11 +34,12 @@ class MessageService {
       dialogue: dialogueId,
       author: { $ne: userId },
       isRead: false,
-    }).populate("author", "_id socket_id");
+    })
+      .lean()
+      .populate("author", "_id socket_id");
 
     if (notReadData.length) {
       const interlocutorSocketId = notReadData[0].author.socket_id;
-      const updatedMessagesId = notReadData.map((item) => item._id);
 
       await MessageModel.updateMany(
         {
@@ -49,9 +51,19 @@ class MessageService {
         }
       );
 
+      const user = await UserModel.findById(userId).lean().select("socket_id");
+
+      if (user && user.socket_id) {
+        io.to(user.socket_id).emit(
+          "SERVER:UNREADMESSAGES_DESCREASE",
+          notReadData.length
+        );
+      }
+
       io.to(interlocutorSocketId).emit(
         "SERVER:MESSAGES_READ",
-        updatedMessagesId
+        notReadData,
+        dialogueId
       );
     }
 
@@ -75,6 +87,46 @@ class MessageService {
       ]);
 
     return messages;
+  }
+
+  public async getUnreadMessagesCount(userId: string) {
+    let count: number = 0;
+
+    const dialogues = await DialogueModel.find({
+      members: userId,
+    })
+      .lean()
+      .select("_id");
+
+    if (!dialogues.length) {
+      return;
+    }
+
+    for (let i = 0; i < dialogues.length; i++) {
+      const dialogue = dialogues[i];
+      const messages = await MessageModel.find({
+        dialogue: dialogue._id,
+        author: {
+          $ne: userId,
+        },
+      })
+        .lean()
+        .select("isRead");
+
+      if (!messages.length) {
+        return;
+      }
+
+      for (let j = 0; j < messages.length; j++) {
+        const message = messages[j];
+
+        if (!message.isRead) {
+          count++;
+        }
+      }
+    }
+
+    return count;
   }
 
   public async create(data: CreateMessage, io: SocketServer | null = null) {
@@ -140,15 +192,20 @@ class MessageService {
     await dialogue.save();
     await dialogue.populate("members", "socket_id");
 
-    console.log(message);
-
     if (io) {
+      const roomClientsCount = io.sockets.adapter.rooms.get(dialogueId)?.size;
+
       dialogue.members.forEach((user) => {
-        io.to(user.socket_id).emit("SERVER:MESSAGE_CREATED", message);
+        io.to(user.socket_id).emit(
+          "SERVER:MESSAGE_CREATED",
+          message,
+          roomClientsCount
+        );
         io.to(user.socket_id).emit(
           "SERVER:DIALOGUE_MESSAGE_UPDATE",
           dialogueId,
-          message
+          message,
+          roomClientsCount
         );
       });
     }
