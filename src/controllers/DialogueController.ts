@@ -27,15 +27,13 @@ export default class DialogueController {
       ) as CreateDialogue;
       data.authorId = req.user ? req.user?._id : "";
 
-      const dialogue = await dialogueService.create(data, io);
+      const { dialogue, message } = await dialogueService.create(data, io);
 
-      return res
-        .status(200)
-        .send({
-          status: "success",
-          message: "Диалог успешно создан",
-          dialogue,
-        });
+      return res.status(200).send({
+        status: "success",
+        message,
+        dialogue,
+      });
     } catch (error: any) {
       return res.status(400).json({
         status: "error",

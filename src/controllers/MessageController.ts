@@ -81,7 +81,7 @@ export default class MessageController {
 
       return res.status(200).json({
         status: "success",
-        message: "Сообщение было успешно добавлено",
+        message: "Сообщение успешно отправлено",
       });
     } catch (error: any) {
       return res.status(400).json({

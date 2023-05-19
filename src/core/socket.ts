@@ -44,13 +44,6 @@ export default (io: SocketServer): void => {
       socket.to(data.currentDialogueId).emit("SERVER:TYPING_RESPONSE", data);
     });
 
-    // socket.on("CLIENT:MESSAGE_READ_SERV", async (data: MessageRead) => {
-    //   console.log("MESSAGE_READ");
-    //   socket
-    //     .to(data.dialogueId)
-    //     .emit("SERVER:MESSAGE_READ", [data.message], data.dialogueId);
-    // });
-
     socket.on("logout", async () => {
       await UserModel.findByIdAndUpdate(user_id, {
         isOnline: false,

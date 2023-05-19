@@ -71,25 +71,46 @@ class DialogueService {
           ],
         },
       ]);
-      await dialogue.save();
 
       if (author.socket_id && interlocutor.socket_id) {
-        io.to(author.socket_id).emit("SERVER:MESSAGE_CREATED", message);
-        io.to(interlocutor.socket_id).emit("SERVER:MESSAGE_CREATED", message);
+        io.to(author.socket_id).emit("SERVER:JOIN_TO_ROOM", dialogue._id);
+
+        const roomClientsCount = io.sockets.adapter.rooms.get(
+          dialogue._id.toString()
+        )?.size;
+
+        if (roomClientsCount && roomClientsCount >= 1) {
+          message.isRead = true;
+          await message.save();
+        }
+
+        io.to(author.socket_id).emit("SERVER:MESSAGE_CREATED", message, 2);
+        io.to(interlocutor.socket_id).emit(
+          "SERVER:MESSAGE_CREATED",
+          message,
+          2
+        );
 
         io.to(author.socket_id).emit(
           "SERVER:DIALOGUE_MESSAGE_UPDATE",
           dialogue._id,
-          message
+          message,
+          2
         );
         io.to(interlocutor.socket_id).emit(
           "SERVER:DIALOGUE_MESSAGE_UPDATE",
           dialogue._id,
-          message
+          message,
+          2
         );
       }
 
-      return dialogue;
+      await dialogue.save();
+
+      return {
+        message: "Сообщение успешно отправлено",
+        dialogue,
+      };
     } else {
       const new_dialogue = await DialogueModel.create({
         members: [authorId, interlocutorId],
@@ -137,8 +158,10 @@ class DialogueService {
 
         io.to(author.socket_id).emit("SERVER:JOIN_TO_ROOM", new_dialogue._id);
       }
-
-      return new_dialogue;
+      return {
+        message: "Диалог успешно создан",
+        dialogue: new_dialogue,
+      };
     }
   }
 

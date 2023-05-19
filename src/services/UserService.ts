@@ -1,3 +1,9 @@
+// path
+import path from "path";
+
+// fs
+import fs from "fs";
+
 // model
 import UserModel from "../models/UserModel.js";
 import DialogueModel from "../models/DialogueModel.js";
@@ -433,12 +439,26 @@ class UserService {
       await dialogue.deleteOne();
       const messages = await MessageModel.find({ dialogue: dialogue._id });
 
-      messages.forEach(async (message) => {
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+
         if (message.files.length) {
           await fileService.removeFile(authorId, message?._id);
           await fileService.removeFile(friendId, message?._id);
         }
-      });
+      }
+
+      const dirPath = path.join(
+        path.resolve(),
+        `uploads/messages/${dialogue._id}/`
+      );
+
+      if (fs.existsSync(dirPath)) {
+        fs.rmdir(dirPath, (err) => {
+          if (err) new Error(err.message);
+          console.log("Папка успешно удалена");
+        });
+      }
 
       await MessageModel.deleteMany({ dialogue: dialogue._id });
     }

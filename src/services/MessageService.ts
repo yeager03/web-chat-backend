@@ -157,7 +157,6 @@ class MessageService {
       files: [],
       isReference,
     });
-    dialogue.lastMessage = message._id;
 
     const uploadedFiles = files?.length
       ? await fileService.createFile(
@@ -170,7 +169,6 @@ class MessageService {
       : [];
 
     message.files = uploadedFiles;
-
     await message.save();
 
     await message.populate([
@@ -189,11 +187,15 @@ class MessageService {
       },
     ]);
 
-    await dialogue.save();
     await dialogue.populate("members", "socket_id");
 
     if (io) {
       const roomClientsCount = io.sockets.adapter.rooms.get(dialogueId)?.size;
+
+      if (roomClientsCount && roomClientsCount > 1) {
+        message.isRead = true;
+        await message.save();
+      }
 
       dialogue.members.forEach((user) => {
         io.to(user.socket_id).emit(
@@ -209,6 +211,9 @@ class MessageService {
         );
       });
     }
+
+    dialogue.lastMessage = message._id;
+    await dialogue.save();
 
     return message;
   }
