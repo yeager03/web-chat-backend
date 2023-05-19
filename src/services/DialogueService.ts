@@ -8,6 +8,7 @@ import MessageService from "./MessageService.js";
 // types
 import { CreateDialogue } from "./../controllers/DialogueController.js";
 import { Server as SocketServer } from "socket.io";
+import MessageModel from "../models/MessageModel.js";
 
 class DialogueService {
   public async create(data: CreateDialogue, io: SocketServer) {
@@ -166,7 +167,7 @@ class DialogueService {
   }
 
   public async getDialogues(authorId: string) {
-    const data = await DialogueModel.find({ members: authorId })
+    const dialogues = await DialogueModel.find({ members: authorId })
       .lean()
       .populate([
         {
@@ -196,18 +197,37 @@ class DialogueService {
         },
       ]);
 
-    return data;
-  }
+    if (dialogues.length) {
+      for (let i = 0; i < dialogues.length; i++) {
+        const dialogue = dialogues[i];
+        const messages = await MessageModel.find({
+          dialogue: dialogue._id,
+          author: {
+            $ne: authorId,
+          },
+        })
+          .lean()
+          .select("isRead");
 
-  // ?
-  public async removeDialogue(authorId: string) {
-    const dialogue = await DialogueModel.findOne({ author: authorId });
+        if (!messages.length) {
+          return;
+        }
 
-    if (!dialogue) {
-      throw new Error("Диалог не найден");
+        for (let j = 0; j < messages.length; j++) {
+          const message = messages[j];
+
+          if (!message.isRead) {
+            if (!dialogue.unreadMessagesCount) {
+              dialogue.unreadMessagesCount = 1;
+            } else {
+              dialogue.unreadMessagesCount = dialogue.unreadMessagesCount + 1;
+            }
+          }
+        }
+      }
     }
 
-    return dialogue.deleteOne();
+    return dialogues;
   }
 }
 

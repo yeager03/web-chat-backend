@@ -89,46 +89,6 @@ class MessageService {
     return messages;
   }
 
-  public async getUnreadMessagesCount(userId: string) {
-    let count: number = 0;
-
-    const dialogues = await DialogueModel.find({
-      members: userId,
-    })
-      .lean()
-      .select("_id");
-
-    if (!dialogues.length) {
-      return;
-    }
-
-    for (let i = 0; i < dialogues.length; i++) {
-      const dialogue = dialogues[i];
-      const messages = await MessageModel.find({
-        dialogue: dialogue._id,
-        author: {
-          $ne: userId,
-        },
-      })
-        .lean()
-        .select("isRead");
-
-      if (!messages.length) {
-        return;
-      }
-
-      for (let j = 0; j < messages.length; j++) {
-        const message = messages[j];
-
-        if (!message.isRead) {
-          count++;
-        }
-      }
-    }
-
-    return count;
-  }
-
   public async create(data: CreateMessage, io: SocketServer | null = null) {
     const { messageAuthor, messageText, dialogueId, files } = data;
 

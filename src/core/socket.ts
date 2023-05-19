@@ -21,14 +21,47 @@ export default (io: SocketServer): void => {
   io.on("connection", async (socket: Socket) => {
     const user_id = socket.handshake.query["user_id"];
 
-    console.log(`User connected ${socket.id}`);
-
-    if (Boolean(user_id)) {
-      await UserModel.findByIdAndUpdate(user_id, {
-        socket_id: socket.id,
-        isOnline: true,
-      });
+    if (!Boolean(user_id)) {
+      throw new Error(`Не корректный id:${user_id}`);
     }
+
+    console.log(
+      `User with id:${user_id} connected. His socket_id:${socket.id}`
+    );
+
+    const emitEventToFriends = (
+      friends: { _id: string; socket_id: string }[],
+      ev_name: string
+    ) => {
+      for (let i = 0; i < friends.length; i++) {
+        const { socket_id } = friends[i];
+
+        if (socket_id) {
+          io.to(socket_id).emit(ev_name, user_id);
+        }
+      }
+    };
+
+    const user = await UserModel.findById(user_id)
+      .select("_id isOnline socket_id friends")
+      .populate([
+        {
+          path: "friends",
+          select: "_id socket_id",
+        },
+      ]);
+
+    if (!user) {
+      throw new Error(`User with id:${user_id} not found!`);
+    }
+
+    user.socket_id = socket.id;
+    user.isOnline = true;
+
+    await user.save();
+
+    const friends = user.friends;
+    emitEventToFriends(friends, "SERVER:FRIEND_ONLINE");
 
     socket.on("CLIENT:JOIN_ROOM", async (dialogueId: string) => {
       socket.join(dialogueId);
@@ -45,18 +78,20 @@ export default (io: SocketServer): void => {
     });
 
     socket.on("logout", async () => {
-      await UserModel.findByIdAndUpdate(user_id, {
-        isOnline: false,
-      });
+      user.isOnline = false;
+      await user.save();
+
+      emitEventToFriends(friends, "SERVER:FRIEND_OFFLINE");
 
       socket.disconnect();
       console.log(`User logged out ${socket.id}`);
     });
 
     socket.on("disconnect", async () => {
-      await UserModel.findByIdAndUpdate(user_id, {
-        isOnline: false,
-      });
+      user.isOnline = false;
+      await user.save();
+
+      emitEventToFriends(friends, "SERVER:FRIEND_OFFLINE");
 
       socket.disconnect();
       console.log(`User disconnected ${socket.id}`);
