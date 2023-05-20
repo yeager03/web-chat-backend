@@ -24,7 +24,7 @@ class FileService {
 
       const newPathDir = path.join(
         path.resolve(),
-        `uploads/${fileDirName}/${dialogueId}/`
+        `uploads/${fileDirName}${dialogueId ? `/${dialogueId}/` : "/"}`
       );
       const newPath = `${newPathDir}/${file.filename}`;
 
@@ -41,7 +41,9 @@ class FileService {
       const fileName = file.originalname;
       const filePath = newPath;
       const size = file.size;
-      const url = `${process.env.API_URL}/uploads/${fileDirName}/${dialogueId}/${file.filename}`;
+      const url = `${process.env.API_URL}/uploads/${fileDirName}${
+        dialogueId ? `/${dialogueId}/` : "/"
+      }${file.filename}`;
       const type = file.mimetype.split("/")[0];
       const extension = file.mimetype.split("/")[1];
 
@@ -69,7 +71,9 @@ class FileService {
       .select("filePath");
 
     files.forEach((file) => {
-      fs.unlink(path.resolve(file.filePath), (err) => console.log(err));
+      fs.unlink(path.resolve(file.filePath), (err) =>
+        console.log("remove file", err)
+      );
     });
 
     await FileModel.deleteMany({ message, author });

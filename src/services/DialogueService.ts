@@ -172,7 +172,8 @@ class DialogueService {
       .populate([
         {
           path: "members",
-          select: "_id email fullName avatar avatarColors lastVisit isOnline",
+          select:
+            "_id email fullName avatar avatarColors lastVisit isOnline about_me",
           populate: {
             path: "avatar",
             select: "_id fileName url size extension",

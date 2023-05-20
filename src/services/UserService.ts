@@ -375,9 +375,6 @@ class UserService {
     }
 
     if (sender.socket_id) {
-      console.log("sender fullName:", sender.fullName);
-      console.log("sender socket_id:", sender.socket_id);
-      console.log("sender id:", senderId);
       io.to(sender.socket_id).emit("SERVER:NEW_FRIEND_ACCEPT", senderId, {
         ...new UserDto(recipient),
       });
