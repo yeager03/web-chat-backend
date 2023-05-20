@@ -29,7 +29,7 @@ export default (io: SocketServer): void => {
       `User with id:${user_id} connected. His socket_id:${socket.id}`
     );
 
-    const emitEventToFriends = (
+    const emitEventToFriends = async (
       friends: { _id: string; socket_id: string }[],
       ev_name: string
     ) => {
@@ -61,7 +61,7 @@ export default (io: SocketServer): void => {
     await user.save();
 
     const friends = user.friends;
-    emitEventToFriends(friends, "SERVER:FRIEND_ONLINE");
+    await emitEventToFriends(friends, "SERVER:FRIEND_ONLINE");
 
     socket.on("CLIENT:JOIN_ROOM", async (dialogueId: string) => {
       socket.join(dialogueId);
@@ -81,7 +81,7 @@ export default (io: SocketServer): void => {
       user.isOnline = false;
       await user.save();
 
-      emitEventToFriends(friends, "SERVER:FRIEND_OFFLINE");
+      await emitEventToFriends(friends, "SERVER:FRIEND_OFFLINE");
 
       socket.disconnect();
       console.log(`User logged out ${socket.id}`);
@@ -91,7 +91,7 @@ export default (io: SocketServer): void => {
       user.isOnline = false;
       await user.save();
 
-      emitEventToFriends(friends, "SERVER:FRIEND_OFFLINE");
+      await emitEventToFriends(friends, "SERVER:FRIEND_OFFLINE");
 
       socket.disconnect();
       console.log(`User disconnected ${socket.id}`);
