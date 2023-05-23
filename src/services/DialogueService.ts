@@ -210,18 +210,16 @@ class DialogueService {
           .lean()
           .select("isRead");
 
-        if (!messages.length) {
-          return;
-        }
+        if (messages.length) {
+          for (let j = 0; j < messages.length; j++) {
+            const message = messages[j];
 
-        for (let j = 0; j < messages.length; j++) {
-          const message = messages[j];
-
-          if (!message.isRead) {
-            if (!dialogue.unreadMessagesCount) {
-              dialogue.unreadMessagesCount = 1;
-            } else {
-              dialogue.unreadMessagesCount = dialogue.unreadMessagesCount + 1;
+            if (!message.isRead) {
+              if (!dialogue.unreadMessagesCount) {
+                dialogue.unreadMessagesCount = 1;
+              } else {
+                dialogue.unreadMessagesCount = dialogue.unreadMessagesCount + 1;
+              }
             }
           }
         }

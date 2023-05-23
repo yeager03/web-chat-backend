@@ -42,7 +42,6 @@ const io: SocketServer = new SocketServer(server, {
 
 // port
 const PORT = process.env.PORT || 3001;
-
 const __dirname = path.resolve();
 
 // middleware

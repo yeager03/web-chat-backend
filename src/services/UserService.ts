@@ -47,7 +47,7 @@ class UserService {
     const hashPassword = await bcrypt.hash(password, 10);
 
     const activationId = uuidv4();
-    const activationIdExpiries = Date.now() + 10 * 60 * 1000;
+    const activationIdExpires = Date.now() + 10 * 60 * 1000;
 
     const avatarColors = getRandomColors();
 
@@ -56,7 +56,7 @@ class UserService {
       fullName,
       password: hashPassword,
       activationId,
-      activationIdExpiries,
+      activationIdExpires,
       avatarColors,
     });
 
@@ -169,7 +169,7 @@ class UserService {
       };
     }
 
-    if (user.activationIdExpiries && +new Date() > user.activationIdExpiries) {
+    if (user.activationIdExpires && +new Date() > user.activationIdExpires) {
       throw {
         status: "expired",
         message: "Это ссылка больше не действительна",
@@ -180,7 +180,7 @@ class UserService {
     user.isActivated = true;
 
     user.activationId = null;
-    user.activationIdExpiries = null;
+    user.activationIdExpires = null;
 
     await user.save();
   }
@@ -193,10 +193,10 @@ class UserService {
     }
 
     const activationId = uuidv4();
-    const activationIdExpiries = Date.now() + 10 * 60 * 1000;
+    const activationIdExpires = Date.now() + 10 * 60 * 1000;
 
     user.activationId = activationId;
-    user.activationIdExpiries = activationIdExpiries;
+    user.activationIdExpires = activationIdExpires;
 
     await user.save();
     await mailService.sendActivationMail(
@@ -214,10 +214,10 @@ class UserService {
     }
 
     const passwordResetId = uuidv4();
-    const passwordResetIdExpiries = Date.now() + 10 * 60 * 1000;
+    const passwordResetIdExpires = Date.now() + 10 * 60 * 1000;
 
     user.passwordResetId = passwordResetId;
-    user.passwordResetIdExpiries = passwordResetIdExpiries;
+    user.passwordResetIdExpires = passwordResetIdExpires;
 
     await user.save();
     await mailService.resetPasswordMail(
@@ -242,8 +242,8 @@ class UserService {
     }
 
     if (
-      user.passwordResetIdExpiries &&
-      +new Date() > user.passwordResetIdExpiries
+      user.passwordResetIdExpires &&
+      +new Date() > user.passwordResetIdExpires
     ) {
       throw {
         status: "expired",
@@ -255,7 +255,7 @@ class UserService {
       user.password = await bcrypt.hash(password, 10);
 
       user.passwordResetId = null;
-      user.passwordResetIdExpiries = null;
+      user.passwordResetIdExpires = null;
 
       await user.save();
     }
