@@ -487,6 +487,9 @@ class UserService {
 
     if (file && user.avatar) {
       await fileService.removeFile(authorId);
+    }
+
+    if (file && user.avatar) {
       user.avatar = await fileService.createFile([file], authorId, "profile");
     }
 
