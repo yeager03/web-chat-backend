@@ -485,11 +485,8 @@ class UserService {
       throw new Error("Пользователь не найден");
     }
 
-    if (user.avatar) {
+    if (file && user.avatar) {
       await fileService.removeFile(authorId);
-    }
-
-    if (file) {
       user.avatar = await fileService.createFile([file], authorId, "profile");
     }
 

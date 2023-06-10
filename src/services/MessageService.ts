@@ -20,6 +20,8 @@ import crypto from "crypto-js";
 
 // validation
 import validator from "validator";
+import path from "path";
+import fs from "fs";
 
 class MessageService {
   public async getMessages(data: GetMessages, io: SocketServer) {
@@ -216,6 +218,18 @@ class MessageService {
       message.files.length &&
         (await fileService.removeFile(authorId, messageId));
       await dialogue.deleteOne();
+
+      const dirPath = path.join(
+        path.resolve(),
+        `uploads/messages/${dialogue._id}/`
+      );
+
+      if (fs.existsSync(dirPath)) {
+        fs.rmdir(dirPath, (err) => {
+          if (err) new Error(err.message);
+          console.log("Папка успешно удалена");
+        });
+      }
 
       return dialogue.members.forEach((user) => {
         io.to(user.socket_id).emit("SERVER:MESSAGE_DELETED", message);

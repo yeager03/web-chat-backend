@@ -46,7 +46,7 @@ export default class DialogueController {
       const authorId: string = req.user ? req.user._id : "";
       const dialogues = await dialogueService.getDialogues(authorId);
 
-      return res.status(200).send({ status: "success", dialogues });
+      return res.status(200).json({ status: "success", dialogues });
     } catch (error: any) {
       return res.status(400).json({
         status: "error",
